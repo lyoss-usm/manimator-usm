@@ -22,20 +22,20 @@ const translations = {
     curvePlaceholder: "Curva en LaTeX",
     lowerBoundLabel: "Límite inferior a",
     upperBoundLabel: "Límite superior b",
-    preserveProportions: "Preservar proporciones de curva (ancho, largo, alto)",
-    includeTangent: "Incluir derivada, recta tangente y vector velocidad",
+    preserveAspectRatio: "Usar la misma escala en todos los ejes, preservando relación de aspecto de la curva (ancho:largo:alto)",
+    includeTangent: "Incluir derivada y vector tangente",
     render: "Renderizar",
     rendering: "Renderizando...",
     generatingVideo: "Generando video...",
     noVideo: "Aún no hay video disponible",
-    drawTab: "Curva",
+    tracingTab: "Trazado",
     tangentTab: "Tangente",
     github: "GitHub",
     builtWith: "Desarrollado con React, FastAPI, Celery y Manim",
     madeWith: "Hecho con",
     inManim: "en Manim",
     language: "Español",
-    flag: <Es />
+    flag: <Es />,
   },
 
   en: {
@@ -44,13 +44,13 @@ const translations = {
     curvePlaceholder: "Curva en LaTeX",
     lowerBoundLabel: "Lower bound a",
     upperBoundLabel: "Upper bound b",
-    preserveProportions: "Preserve curve proportions (width, length, height)",
-    includeTangent: "Include derivative, tangent line and velocity vector",
+    preserveAspectRatio: "Use the same scale for all axes, preserving aspect ratio of curve (width:length:height)",
+    includeTangent: "Include derivative and tangent vector",
     render: "Render",
     rendering: "Rendering...",
     generatingVideo: "Generating video...",
     noVideo: "No video available yet",
-    drawTab: "Curve",
+    tracingTab: "Tracing",
     tangentTab: "Tangent",
     github: "GitHub",
     builtWith: "Built with React, FastAPI, Celery and Manim",
@@ -61,12 +61,12 @@ const translations = {
   },
 };
 
-type VideoKey = "draw" | "tangent";
+type VideoKey = "tracing" | "tangent";
 
 type Language = "en" | "es";
 
 type VideoUrls = {
-  draw: string | null;
+  tracing: string | null;
   tangent: string | null;
 };
 
@@ -78,21 +78,21 @@ export default function App() {
   const [aTex, setATex] = useState("0");
   const [bTex, setBTex] = useState("2\\pi");
   const [includeTangent, setIncludeTangent] = useState(false);
-  const [sceneConfig, setSceneConfig] = useState({ "preserve_proportions": true });
+  const [sceneConfig, setSceneConfig] = useState({ "preserve_aspect_ratio": false });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [videoUrls, setVideoUrls] = useState<VideoUrls>({
-    draw: null,
+    tracing: null,
     tangent: null,
   });
-  const [activeTab, setActiveTab] = useState<VideoKey>("draw");
+  const [activeTab, setActiveTab] = useState<VideoKey>("tracing");
 
   // Tabs dinámicas dependiendo de las opciones habilitadas
   const tabs = useMemo(() => {
     const baseTabs: { key: VideoKey; label: string }[] = [
       {
-        key: "draw",
-        label: t.drawTab,
+        key: "tracing",
+        label: t.tracingTab,
       },
     ];
 
@@ -109,13 +109,13 @@ export default function App() {
   // Mantener tab válida
   useEffect(() => {
     if (!tabs.find((t) => t.key === activeTab)) {
-      setActiveTab("draw");
+      setActiveTab("tracing");
     }
   }, [tabs, activeTab]);
 
   const resetVideos = () => {
     setVideoUrls({
-      draw: null,
+      tracing: null,
       tangent: null,
     });
   };
@@ -124,7 +124,7 @@ export default function App() {
     setLoading(true);
     setError("");
     resetVideos();
-    setActiveTab("draw");
+    setActiveTab("tracing");
 
     const res = await fetch(`${API_URL}/render`, {
       method: "POST",
@@ -151,7 +151,7 @@ export default function App() {
 
       const getNewVideoUrls = (data: any) => {
         const newVideoUrls: VideoUrls = {
-          draw: null,
+          tracing: null,
           tangent: null,
         };
 
@@ -289,13 +289,13 @@ export default function App() {
 
               <Field orientation="horizontal">
                 <Checkbox
-                  id="preserveProportions"
-                  name="preserveProportions"
-                  checked={sceneConfig.preserve_proportions}
-                  onCheckedChange={value => setSceneConfig({ ...sceneConfig, preserve_proportions: !!value })}
+                  id="preserveAspectRatio"
+                  name="preserveAspectRatio"
+                  checked={sceneConfig.preserve_aspect_ratio}
+                  onCheckedChange={value => setSceneConfig({ ...sceneConfig, preserve_aspect_ratio: !!value })}
                 />
-                <FieldLabel htmlFor="preserveProportions">
-                  {t.preserveProportions}
+                <FieldLabel htmlFor="preserveAspectRatio">
+                  {t.preserveAspectRatio}
                 </FieldLabel>
               </Field>
 

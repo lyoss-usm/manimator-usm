@@ -20,7 +20,7 @@ def render_manim_task(
     scene_config: dict[str, Any],
 ) -> str:
     scene_dict = {
-        "draw": True,
+        "tracing": True,
         "tangent": include_tangent,
     }
     scene_urls = {key: None for key in scene_dict}

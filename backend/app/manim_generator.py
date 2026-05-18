@@ -146,7 +146,7 @@ class BaseCurveScene(ThreeDScene):
         curve_min_point = np.min(f_values, axis=0)
         curve_max_point = np.max(f_values, axis=0)
         curve_diffs = curve_max_point - curve_min_point
-        if self.scene_config["preserve_proportions"]:
+        if self.scene_config["preserve_aspect_ratio"]:
             curve_diffs[:] = max(curve_diffs)
 
         # Calcular steps
@@ -229,7 +229,7 @@ class BaseCurveScene(ThreeDScene):
 
         self.add(self.f_tex_mob, self.interval, self.axes, self.t_tracker, self.t_dot_group, self.f_dot)
 
-    def draw_curve(self) -> None:
+    def trace_curve(self) -> None:
         self.t_tracker.set_value(self.a)
 
         self.wait()
@@ -278,10 +278,10 @@ class BaseCurveScene(ThreeDScene):
         self.wait()
 
 
-class DrawCurveScene(BaseCurveScene):
+class TracingCurveScene(BaseCurveScene):
     def construct(self):
         self.setup_scene()
-        self.draw_curve()
+        self.trace_curve()
 
 
 class CurveTangentScene(BaseCurveScene):
@@ -318,10 +318,10 @@ def render_scene(
 ) -> str:
     output_filename_prefix = generate_filename_prefix(f_tex, a_tex, b_tex)
     output_filename = f"{output_filename_prefix}_{scene_key}"
-    if scene_config["preserve_proportions"]:
-        output_filename += "_preserveproportions"
+    if scene_config["preserve_aspect_ratio"]:
+        output_filename += "_preserveaspectratio"
     scene_class = {
-        "draw": DrawCurveScene,
+        "tracing": TracingCurveScene,
         "tangent": CurveTangentScene,
     }[scene_key]
 
@@ -338,5 +338,5 @@ if __name__ == "__main__":
         r"0",
         r"2\pi",
         "tangent",
-        {"preserve_proportions": False}
+        {"preserve_aspect_ratio": False}
     )
