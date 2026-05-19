@@ -22,7 +22,7 @@ app.mount("/videos", StaticFiles(directory="/manim/media/videos/720p30"), name="
 
 @app.post("/render")
 def render(req: RenderRequest):
-    task = render_manim_task.delay(req.f_tex, req.a_tex, req.b_tex, req.include_tangent, req.scene_config)
+    task = render_manim_task.delay(req.f_tex, req.a_tex, req.b_tex, req.included_scenes, req.scene_config)
     return {"task_id": task.id}
 
 @app.get("/status/{task_id}")

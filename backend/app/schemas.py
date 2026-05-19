@@ -7,8 +7,15 @@ class RenderRequest(BaseModel):
     f_tex: str
     a_tex: str
     b_tex: str
-    include_tangent: bool
+    included_scenes: dict[str, bool]
     scene_config: SceneConfig
+
+
+class IncludeScenes(TypedDict):
+    tracing: bool
+    rotation: bool
+    tangent: bool
+    normal: bool
 
     
 class SceneConfig(TypedDict):

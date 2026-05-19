@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "./components/ui/checkbox";
@@ -28,8 +28,18 @@ const translations = {
     rendering: "Renderizando...",
     generatingVideo: "Generando video...",
     noVideo: "Aún no hay video disponible",
-    tracingTab: "Trazado",
-    tangentTab: "Tangente",
+    sceneLabels: {
+      tracing: "Trazado",
+      tangent: "Tangente",
+      rotation: "Rotación",
+      normal: "Normal",
+    },
+    sceneDescriptions: {
+      tracing: "",
+      tangent: "Incluir derivada y vector tangente",
+      rotation: "Rotar curva 360° en 3D",
+      normal: "Incluir recta o plano normal",
+    },
     github: "GitHub",
     builtWith: "Desarrollado con React, FastAPI, Celery y Manim",
     madeWith: "Hecho con",
@@ -50,8 +60,18 @@ const translations = {
     rendering: "Rendering...",
     generatingVideo: "Generating video...",
     noVideo: "No video available yet",
-    tracingTab: "Tracing",
-    tangentTab: "Tangent",
+    sceneLabels: {
+      tracing: "Tracing",
+      tangent: "Tangent",
+      rotation: "Rotation",
+      normal: "Normal",
+    },
+    sceneDescriptions: {
+      tracing: "",
+      tangent: "Include derivative and tangent vector",
+      rotation: "Rotate curve 360° in 3D",
+      normal: "Include normal line or plane",
+    },
     github: "GitHub",
     builtWith: "Built with React, FastAPI, Celery and Manim",
     madeWith: "Made with",
@@ -61,14 +81,13 @@ const translations = {
   },
 };
 
-type VideoKey = "tracing" | "tangent";
+const SCENE_KEYS = ["tracing", "rotation", "tangent", "normal"] as const;
+type SceneKey = typeof SCENE_KEYS[number];
 
 type Language = "en" | "es";
 
-type VideoUrls = {
-  tracing: string | null;
-  tangent: string | null;
-};
+type VideoUrls = Record<SceneKey, string | null>;
+type IncludedScenes = Record<SceneKey, boolean>;
 
 export default function App() {
   const [language, setLanguage] = useState<Language>("es");
@@ -77,47 +96,32 @@ export default function App() {
   const [fTex, setFTex] = useState("(\\cos(t), \\sin(t))");
   const [aTex, setATex] = useState("0");
   const [bTex, setBTex] = useState("2\\pi");
-  const [includeTangent, setIncludeTangent] = useState(false);
   const [sceneConfig, setSceneConfig] = useState({ "preserve_aspect_ratio": false });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [videoUrls, setVideoUrls] = useState<VideoUrls>({
-    tracing: null,
-    tangent: null,
-  });
-  const [activeTab, setActiveTab] = useState<VideoKey>("tracing");
 
-  // Tabs dinámicas dependiendo de las opciones habilitadas
-  const tabs = useMemo(() => {
-    const baseTabs: { key: VideoKey; label: string }[] = [
-      {
-        key: "tracing",
-        label: t.tracingTab,
-      },
-    ];
+  const createEmptyVideoUrls = (): VideoUrls => 
+    Object.fromEntries(SCENE_KEYS.map(key => [key, null])) as VideoUrls;
 
-    if (includeTangent) {
-      baseTabs.push({
-        key: "tangent",
-        label: t.tangentTab,
-      });
-    }
-
-    return baseTabs;
-  }, [t, includeTangent]);
+  const createDefaultIncludedScenes = (): IncludedScenes => {
+    const includedScenes = Object.fromEntries(SCENE_KEYS.map(key => [key, false]));
+    includedScenes.tracing = true;
+    return includedScenes as IncludedScenes;
+  }
+  
+  const [videoUrls, setVideoUrls] = useState(createEmptyVideoUrls());
+  const [includedScenes, setIncludedScenes] = useState(createDefaultIncludedScenes());
+  const [activeTab, setActiveTab] = useState<SceneKey>("tracing");
 
   // Mantener tab válida
   useEffect(() => {
-    if (!tabs.find((t) => t.key === activeTab)) {
+    if (!includedScenes[activeTab]) {
       setActiveTab("tracing");
     }
-  }, [tabs, activeTab]);
+  }, [includedScenes, activeTab]);
 
   const resetVideos = () => {
-    setVideoUrls({
-      tracing: null,
-      tangent: null,
-    });
+    setVideoUrls(createEmptyVideoUrls());
   };
 
   const render = async () => {
@@ -133,7 +137,7 @@ export default function App() {
         f_tex: fTex,
         a_tex: aTex,
         b_tex: bTex,
-        include_tangent: includeTangent,
+        included_scenes: includedScenes,
         scene_config: sceneConfig,
       }),
     });
@@ -150,15 +154,12 @@ export default function App() {
       setError("");
 
       const getNewVideoUrls = (data: any) => {
-        const newVideoUrls: VideoUrls = {
-          tracing: null,
-          tangent: null,
-        };
+        const newVideoUrls = createEmptyVideoUrls();
 
-        for (const key in data.video_urls) {
+        for (const key of SCENE_KEYS) {
           const videoUrl = data.video_urls[key];
           if (videoUrl !== null) {
-            newVideoUrls[key as VideoKey] = `${API_URL}${videoUrl}`;
+            newVideoUrls[key] = `${API_URL}${videoUrl}`;
           }
         }
 
@@ -303,11 +304,11 @@ export default function App() {
                 <Checkbox
                   id="includeTangent"
                   name="includeTangent"
-                  checked={includeTangent}
-                  onCheckedChange={value => setIncludeTangent(!!value)}
+                  checked={includedScenes["tangent"]}
+                  onCheckedChange={value => setIncludedScenes({ ...includedScenes, "tangent": !!value })}
                 />
                 <FieldLabel htmlFor="includeTangent">
-                  {t.includeTangent}
+                  {t.sceneDescriptions["tangent"]}
                 </FieldLabel>
               </Field>
             </FieldGroup>
@@ -335,22 +336,25 @@ export default function App() {
           {/* Tabs */}
           <div className="space-y-4">
             <div className="flex gap-2 border-b">
-              {tabs.map((tab) => {
-                const isReady = !!videoUrls[tab.key];
+              {SCENE_KEYS.map((sceneKey) => {
+                if (!includedScenes[sceneKey])
+                  return null;
+
+                const isReady = !!videoUrls[sceneKey];
 
                 return (
                   <button
-                    key={tab.key}
-                    onClick={() => setActiveTab(tab.key)}
+                    key={sceneKey}
+                    onClick={() => setActiveTab(sceneKey)}
                     className={`px-4 py-2 text-sm font-medium border-b-2 transition flex items-center gap-2
                       ${
-                        activeTab === tab.key
+                        activeTab === sceneKey
                           ? "border-black text-black"
                           : "border-transparent text-gray-500 hover:text-black"
                       }
                     `}
                   >
-                    {tab.label}
+                    {t.sceneLabels[sceneKey]}
 
                     {!isReady && loading && (
                       <Loader2

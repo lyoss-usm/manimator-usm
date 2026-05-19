@@ -3,6 +3,7 @@ from typing import Any
 from celery import Celery
 
 from app.manim_generator import render_scene
+from app.schemas import IncludeScenes, SceneConfig
 
 celery_app = Celery(
     "tasks",
@@ -16,15 +17,11 @@ def render_manim_task(
     f_tex: str,
     a_tex: str,
     b_tex: str,
-    include_tangent: bool,
-    scene_config: dict[str, Any],
+    included_scenes: IncludeScenes,
+    scene_config: SceneConfig,
 ) -> str:
-    scene_dict = {
-        "tracing": True,
-        "tangent": include_tangent,
-    }
-    scene_urls = {key: None for key in scene_dict}
-    for scene_key, render in scene_dict.items():
+    scene_urls = {key: None for key in included_scenes}
+    for scene_key, render in included_scenes.items():
         if render:
             video_path = render_scene(f_tex, a_tex, b_tex, scene_key, scene_config)
             scene_urls[scene_key] = video_path

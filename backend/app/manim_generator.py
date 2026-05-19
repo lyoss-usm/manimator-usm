@@ -6,6 +6,8 @@ from manim import *
 import sympy
 from sympy.parsing.latex import parse_latex
 
+from app.schemas import SceneConfig
+
 Dot.set_default(num_components=4)
 
 
@@ -314,7 +316,7 @@ def render_scene(
     a_tex: str,
     b_tex: str,
     scene_key: str,
-    scene_config: dict[str, Any],
+    scene_config: SceneConfig,
 ) -> str:
     output_filename_prefix = generate_filename_prefix(f_tex, a_tex, b_tex)
     output_filename = f"{output_filename_prefix}_{scene_key}"
