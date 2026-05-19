@@ -249,6 +249,17 @@ class BaseCurveScene(ThreeDScene):
         )
         self.play(FadeOut(self.t_dot_group, self.f_dot), run_time=0.5)
 
+    def rotate_curve(self) -> None:
+        rotation_axis = OUT
+        if self.dim == 3:
+            rotation_axis = self.axes.z_axis.get_unit_vector()
+
+        self.play(
+            Rotate(VGroup(self.axes, self.curve), angle=TAU, axis=rotation_axis),
+            run_time=16.0,
+            rate_func=linear,
+        )
+
     def animate_tangent_vector(self) -> None:
         self.t_tracker.set_value(self.a)
 
@@ -284,6 +295,14 @@ class TracingCurveScene(BaseCurveScene):
     def construct(self):
         self.setup_scene()
         self.trace_curve()
+
+
+class RotatingCurveScene(BaseCurveScene):
+    def construct(self):
+        self.setup_scene()
+        self.add(self.curve)
+        self.remove(self.t_dot_group, self.f_dot)
+        self.rotate_curve()
 
 
 class CurveTangentScene(BaseCurveScene):
@@ -324,6 +343,7 @@ def render_scene(
         output_filename += "_preserveaspectratio"
     scene_class = {
         "tracing": TracingCurveScene,
+        "rotation": RotatingCurveScene,
         "tangent": CurveTangentScene,
     }[scene_key]
 

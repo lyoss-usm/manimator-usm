@@ -302,6 +302,18 @@ export default function App() {
 
               <Field orientation="horizontal">
                 <Checkbox
+                  id="includeRotation"
+                  name="includeRotation"
+                  checked={includedScenes["rotation"]}
+                  onCheckedChange={value => setIncludedScenes({ ...includedScenes, "rotation": !!value })}
+                />
+                <FieldLabel htmlFor="includeRotation">
+                  {t.sceneDescriptions["rotation"]}
+                </FieldLabel>
+              </Field>
+
+              <Field orientation="horizontal">
+                <Checkbox
                   id="includeTangent"
                   name="includeTangent"
                   checked={includedScenes["tangent"]}
