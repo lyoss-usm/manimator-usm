@@ -285,7 +285,7 @@ class BaseCurveScene(ThreeDScene):
         self.play(
             LaggedStart(
                 MoveToTarget(self.f_tex_mob),
-                FadeIn(self.df_dt_tex_mob),
+                Write(self.df_dt_tex_mob),
                 lag_ratio=0.5,
             ),
         )
@@ -313,6 +313,103 @@ class BaseCurveScene(ThreeDScene):
         )
         self.wait()
 
+    def animate_tangent_line(self) -> None:
+        self.t_tracker.set_value(self.a)
+
+        self.wait()
+
+        p_vector_tex = r"\begin{pmatrix} x \\ y "
+        if self.dim == 3:
+            p_vector_tex += r"\\ z "
+        p_vector_tex += r"\end{pmatrix}"
+        self.tangent_line_tex_mob = MathTex(
+            r"L: \quad \mathbf{p} &= \mathbf{f}(t) + \lambda \frac{\text{d}\mathbf{f}}{\text{d}t}(t) \\",
+            rf"{p_vector_tex} &= {self.f_tex} + \lambda {self.df_dt_tex}",
+        )
+        
+        self.tangent_line_tex_mob.scale(self.f_tex_mob[0][4].width / self.tangent_line_tex_mob[0][3].width)
+        group = VGroup(
+            self.tangent_line_tex_mob, self.f_tex_mob.generate_target()
+        ).arrange(DOWN, buff=0.5)
+        self.tangent_line_tex_mob.shift((self.f_tex_mob.target[0][4].get_x() - self.tangent_line_tex_mob[0][5].get_x()) * RIGHT)
+        if group.width > 4.5:
+            group.scale_to_fit_width(4.5)
+        if group.height > 4.5:
+            group.scale_to_fit_height(4.5)
+        group.next_to(self.interval, UP).set_y(self.f_tex_mob.get_y())
+        if group.get_top()[1] > 4.0 - 0.8:
+            group.to_edge(UP, buff=0.8)
+
+        self.play(
+            LaggedStart(
+                MoveToTarget(self.f_tex_mob),
+                Write(self.tangent_line_tex_mob[0]),
+                lag_ratio=0.5,
+            ),
+        )
+        self.wait(1.5)
+
+        self.play(Write(self.tangent_line_tex_mob[1]))
+        self.wait()
+        
+        self.tangent_line = Line(UP, DOWN).set_stroke(width=2.0)
+        self.df_dt_arrow = Arrow(color=YELLOW)
+        self.tangent_group = VGroup(self.tangent_line, self.df_dt_arrow)
+
+        def update_tangent_group(tangent_group: VGroup) -> None:
+            t = self.t_tracker.get_value()
+            df_dt_t = np.asarray(self.df_dt(t))
+            if all(df_dt_t == 0):
+                tangent_group.set_opacity(0.0)
+                return
+            tangent_group[0].set_opacity(0.5)
+            tangent_group[1].set_opacity(1.0)
+            arrow_start = self.f(t)
+            arrow_end = arrow_start + df_dt_t
+
+            ranges = [self.axes.x_range, self.axes.y_range]
+            if self.dim == 3:
+                ranges.append(self.axes.z_range)
+            start_factor = float("-inf")
+            end_factor = float("inf")
+            for i in range(self.dim):
+                if df_dt_t[i] > 0:
+                    start_factor = max(start_factor, (ranges[i][0] - arrow_start[i]) / df_dt_t[i])
+                    end_factor = min(end_factor, (ranges[i][1] - arrow_start[i]) / df_dt_t[i])
+                elif df_dt_t[i] < 0:
+                    start_factor = max(start_factor, (ranges[i][1] - arrow_start[i]) / df_dt_t[i])
+                    end_factor = min(end_factor, (ranges[i][0] - arrow_start[i]) / df_dt_t[i])
+            down_left_in = np.array([r[0] for r in ranges])
+            up_right_out = np.array([r[1] for r in ranges])
+
+            line_start = arrow_start + start_factor * df_dt_t
+            line_end = arrow_start + end_factor * df_dt_t
+
+            new_arrow = Arrow(
+                self.axes.c2p(arrow_start),
+                self.axes.c2p(arrow_end),
+                color=YELLOW,
+                buff=0.0,
+            )
+            tangent_group[0].put_start_and_end_on(
+                self.axes.c2p(line_start), self.axes.c2p(line_end)
+            )
+            tangent_group[1].become(new_arrow)
+
+        update_tangent_group(self.tangent_group)
+        
+        self.play(FadeIn(self.t_dot_group, self.f_dot, self.tangent_group), run_time=0.5)
+        self.wait(0.5)
+
+        self.tangent_group.add_updater(update_tangent_group)
+
+        self.play(
+            self.t_tracker.animate.set_value(self.b),
+            run_time=self.run_time,
+            rate_func=linear,
+        )
+        self.wait()
+
 
 class TracingCurveScene(BaseCurveScene):
     def construct(self):
@@ -328,12 +425,19 @@ class RotatingCurveScene(BaseCurveScene):
         self.rotate_curve()
 
 
-class CurveTangentScene(BaseCurveScene):
+class TangentVectorScene(BaseCurveScene):
     def construct(self):
         self.setup_scene()
         self.add(self.curve)
         self.remove(self.t_dot_group, self.f_dot)
         self.animate_tangent_vector()
+
+class TangentLineScene(BaseCurveScene):
+    def construct(self):
+        self.setup_scene()
+        self.add(self.curve)
+        self.remove(self.t_dot_group, self.f_dot)
+        self.animate_tangent_line()
 
 
 def test_texes(f_tex: str, a_tex: str, b_tex: str) -> None:
@@ -367,7 +471,8 @@ def render_scene(
     scene_class = {
         "tracing": TracingCurveScene,
         "rotation": RotatingCurveScene,
-        "tangent": CurveTangentScene,
+        "tangentvector": TangentVectorScene,
+        "tangentline": TangentLineScene,
     }[scene_key]
 
     if not Path(f"/manim/media/videos/720p30/{output_filename}.mp4").exists():
@@ -382,6 +487,6 @@ if __name__ == "__main__":
         r"\cos(t), \sin(t), e^t",
         r"0",
         r"2\pi",
-        "tangent",
+        "tangentvector",
         {"preserve_aspect_ratio": False}
     )

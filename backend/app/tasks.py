@@ -3,7 +3,7 @@ from typing import Any
 from celery import Celery
 
 from app.manim_generator import render_scene
-from app.schemas import IncludeScenes, SceneConfig
+from app.schemas import IncludedScenes, SceneConfig
 
 celery_app = Celery(
     "tasks",
@@ -17,7 +17,7 @@ def render_manim_task(
     f_tex: str,
     a_tex: str,
     b_tex: str,
-    included_scenes: IncludeScenes,
+    included_scenes: IncludedScenes,
     scene_config: SceneConfig,
 ) -> str:
     scene_urls = {key: None for key in included_scenes}

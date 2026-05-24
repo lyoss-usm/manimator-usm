@@ -11,10 +11,11 @@ class RenderRequest(BaseModel):
     scene_config: SceneConfig
 
 
-class IncludeScenes(TypedDict):
+class IncludedScenes(TypedDict):
     tracing: bool
     rotation: bool
-    tangent: bool
+    tangentvector: bool
+    tangentline: bool
     normal: bool
 
     

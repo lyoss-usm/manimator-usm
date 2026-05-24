@@ -23,21 +23,22 @@ const translations = {
     lowerBoundLabel: "Límite inferior a",
     upperBoundLabel: "Límite superior b",
     preserveAspectRatio: "Usar la misma escala en todos los ejes, preservando relación de aspecto de la curva (ancho:largo:alto)",
-    includeTangent: "Incluir derivada y vector tangente",
     render: "Renderizar",
     rendering: "Renderizando...",
     generatingVideo: "Generando video...",
     noVideo: "Aún no hay video disponible",
     sceneLabels: {
       tracing: "Trazado",
-      tangent: "Tangente",
       rotation: "Rotación",
+      tangentvector: "Vector tangente",
+      tangentline: "Recta tangente",
       normal: "Normal",
     },
     sceneDescriptions: {
       tracing: "",
-      tangent: "Incluir derivada y vector tangente",
       rotation: "Rotar curva 360° en 3D",
+      tangentvector: "Incluir derivada y vector tangente",
+      tangentline: "Incluir recta tangente",
       normal: "Incluir recta o plano normal",
     },
     github: "GitHub",
@@ -55,21 +56,22 @@ const translations = {
     lowerBoundLabel: "Lower bound a",
     upperBoundLabel: "Upper bound b",
     preserveAspectRatio: "Use the same scale for all axes, preserving aspect ratio of curve (width:length:height)",
-    includeTangent: "Include derivative and tangent vector",
     render: "Render",
     rendering: "Rendering...",
     generatingVideo: "Generating video...",
     noVideo: "No video available yet",
     sceneLabels: {
       tracing: "Tracing",
-      tangent: "Tangent",
       rotation: "Rotation",
+      tangentvector: "Tangent vector",
+      tangentline: "Tangent line",
       normal: "Normal",
     },
     sceneDescriptions: {
       tracing: "",
-      tangent: "Include derivative and tangent vector",
       rotation: "Rotate curve 360° in 3D",
+      tangentvector: "Include derivative and tangent vector",
+      tangentline: "Include tangent line",
       normal: "Include normal line or plane",
     },
     github: "GitHub",
@@ -81,7 +83,7 @@ const translations = {
   },
 };
 
-const SCENE_KEYS = ["tracing", "rotation", "tangent", "normal"] as const;
+const SCENE_KEYS = ["tracing", "rotation", "tangentvector", "tangentline", "normal"] as const;
 type SceneKey = typeof SCENE_KEYS[number];
 
 type Language = "en" | "es";
@@ -314,13 +316,25 @@ export default function App() {
 
               <Field orientation="horizontal">
                 <Checkbox
-                  id="includeTangent"
-                  name="includeTangent"
-                  checked={includedScenes["tangent"]}
-                  onCheckedChange={value => setIncludedScenes({ ...includedScenes, "tangent": !!value })}
+                  id="includeTangentVector"
+                  name="includeTangentVector"
+                  checked={includedScenes["tangentvector"]}
+                  onCheckedChange={value => setIncludedScenes({ ...includedScenes, "tangentvector": !!value })}
                 />
-                <FieldLabel htmlFor="includeTangent">
-                  {t.sceneDescriptions["tangent"]}
+                <FieldLabel htmlFor="includeTangentVector">
+                  {t.sceneDescriptions["tangentvector"]}
+                </FieldLabel>
+              </Field>
+
+              <Field orientation="horizontal">
+                <Checkbox
+                  id="includeTangentLine"
+                  name="includeTangentLine"
+                  checked={includedScenes["tangentline"]}
+                  onCheckedChange={value => setIncludedScenes({ ...includedScenes, "tangentline": !!value })}
+                />
+                <FieldLabel htmlFor="includeTangentLine">
+                  {t.sceneDescriptions["tangentline"]}
                 </FieldLabel>
               </Field>
             </FieldGroup>
