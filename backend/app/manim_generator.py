@@ -41,7 +41,7 @@ class BaseCurveScene(ThreeDScene):
 
         f_coord_texes = [tex.strip() for tex in non_delimited_tex.split(",")]
 
-        self.f_tex = r"\left(" + r",\, ".join(f_coord_texes) + r"\right)"
+        self.f_tex = r"\begin{pmatrix}" + r" \\ ".join(f_coord_texes) + r"\end{pmatrix}"
         self.a_tex = a_tex.strip()
         self.b_tex = b_tex.strip()
 
@@ -63,9 +63,9 @@ class BaseCurveScene(ThreeDScene):
 
         df_dt_coord_exprs = [sympy.diff(expr, "t") for expr in f_coord_exprs]
         self.df_dt_tex = (
-            r"\left("
-            + r",\, ".join(sympy.latex(expr) for expr in df_dt_coord_exprs)
-            + r"\right)"
+            r"\begin{pmatrix}"
+            + r" \\ ".join(sympy.latex(expr) for expr in df_dt_coord_exprs)
+            + r"\end{pmatrix}"
         )
         df_dt_coord_lambdas = [
             sympy.lambdify("t", expr.evalf(subs=substitutions))
@@ -103,13 +103,13 @@ class BaseCurveScene(ThreeDScene):
         )
 
         self.f_tex_mob = MathTex(
-            rf"f'(t) &= {self.df_dt_tex} \\",
             rf"f(t) &= {self.f_tex} \\",
             rf"t &\in \left[{self.a_tex},\, {self.b_tex}\right]"
         )
-        self.f_tex_mob[0].set_opacity(0.0)
         if self.f_tex_mob.width > 4.5:
             self.f_tex_mob.scale_to_fit_width(4.5)
+        if self.f_tex_mob.height > 4.5:
+            self.f_tex_mob.scale_to_fit_height(4.5)
 
         self.interval = VGroup()
         self.interval.add(VGroup(Line(ORIGIN, 0.8*RIGHT).set_color(color) for color in rainbow).arrange(RIGHT, buff=0.0))
@@ -120,13 +120,15 @@ class BaseCurveScene(ThreeDScene):
         for i in [3, 4]:
             if self.interval[i].width > 2.0:
                 self.interval[i].scale_to_fit_width(2.0).next_to(self.interval[i-2], DOWN)
+
+        self.interval.move_to(4 * LEFT).to_edge(DOWN, buff=0.8)
         
         self.t_dot_group = VGroup(
             Dot().set_color(YELLOW).scale(2),
             DecimalNumber(self.a),
         ).move_to(self.interval)
 
-        VGroup(self.f_tex_mob, self.interval).arrange(DOWN, buff=2.0).move_to(4 * LEFT)
+        self.f_tex_mob.move_to(4 * LEFT + UP)
         
         def update_t_dot_group(t_dot_group: VGroup) -> None:
             start, end = self.interval[0][0].get_start(), self.interval[0][-1].get_end()
@@ -254,8 +256,9 @@ class BaseCurveScene(ThreeDScene):
         if self.dim == 3:
             rotation_axis = self.axes.z_axis.get_unit_vector()
 
+        group = VGroup(self.axes, self.curve)
         self.play(
-            Rotate(VGroup(self.axes, self.curve), angle=TAU, axis=rotation_axis),
+            Rotate(group, about_point=group.get_center(), angle=TAU, axis=rotation_axis),
             run_time=16.0,
             rate_func=linear,
         )
@@ -265,7 +268,27 @@ class BaseCurveScene(ThreeDScene):
 
         self.wait()
 
-        self.play(self.f_tex_mob[0].animate.set_opacity(1.0), run_time=0.5)
+        self.df_dt_tex_mob = MathTex(f"f'(t) = {self.df_dt_tex}")
+        self.df_dt_tex_mob.scale(self.f_tex_mob[0][4].width / self.df_dt_tex_mob[0][5].width)
+        group = VGroup(
+            self.df_dt_tex_mob, self.f_tex_mob.generate_target()
+        ).arrange(DOWN)
+        self.df_dt_tex_mob.shift((self.f_tex_mob.target[0][4].get_x() - self.df_dt_tex_mob[0][5].get_x()) * RIGHT)
+        if group.width > 4.5:
+            group.scale_to_fit_width(4.5)
+        if group.height > 4.5:
+            group.scale_to_fit_height(4.5)
+        group.next_to(self.interval, UP).set_y(self.f_tex_mob.get_y())
+        if group.get_top()[1] > 4.0 - 0.8:
+            group.to_edge(UP, buff=0.8)
+
+        self.play(
+            LaggedStart(
+                MoveToTarget(self.f_tex_mob),
+                FadeIn(self.df_dt_tex_mob),
+                lag_ratio=0.5,
+            ),
+        )
         self.wait()
         
         self.df_dt_arrow = Arrow(color=YELLOW)
