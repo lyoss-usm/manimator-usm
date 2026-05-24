@@ -103,7 +103,7 @@ class BaseCurveScene(ThreeDScene):
         )
 
         self.f_tex_mob = MathTex(
-            rf"f(t) &= {self.f_tex} \\",
+            rf"\mathbf{{f}}(t) &= {self.f_tex} \\",
             rf"t &\in \left[{self.a_tex},\, {self.b_tex}\right]"
         )
         if self.f_tex_mob.width > 4.5:
@@ -268,12 +268,12 @@ class BaseCurveScene(ThreeDScene):
 
         self.wait()
 
-        self.df_dt_tex_mob = MathTex(f"f'(t) = {self.df_dt_tex}")
-        self.df_dt_tex_mob.scale(self.f_tex_mob[0][4].width / self.df_dt_tex_mob[0][5].width)
+        self.df_dt_tex_mob = MathTex(rf"\frac{{\text{{d}}\mathbf{{f}}}}{{\text{{d}}t}}(t) = {self.df_dt_tex}")
+        self.df_dt_tex_mob.scale(self.f_tex_mob[0][4].width / self.df_dt_tex_mob[0][8].width)
         group = VGroup(
             self.df_dt_tex_mob, self.f_tex_mob.generate_target()
         ).arrange(DOWN)
-        self.df_dt_tex_mob.shift((self.f_tex_mob.target[0][4].get_x() - self.df_dt_tex_mob[0][5].get_x()) * RIGHT)
+        self.df_dt_tex_mob.shift((self.f_tex_mob.target[0][4].get_x() - self.df_dt_tex_mob[0][8].get_x()) * RIGHT)
         if group.width > 4.5:
             group.scale_to_fit_width(4.5)
         if group.height > 4.5:
