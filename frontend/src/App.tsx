@@ -30,16 +30,18 @@ const translations = {
     sceneLabels: {
       tracing: "Trazado",
       rotation: "Rotación",
-      tangentvector: "Vector tangente",
-      tangentline: "Recta tangente",
+      tangentvector: "Derivada",
+      tangentline: "Tangente",
       normal: "Normal",
+      arclength: "Longitud de arco"
     },
     sceneDescriptions: {
       tracing: "",
       rotation: "Rotar curva 360° en 3D",
-      tangentvector: "Incluir derivada y vector tangente",
+      tangentvector: "Incluir derivada y vector velocidad",
       tangentline: "Incluir recta tangente",
       normal: "Incluir recta o plano normal (activar \"Usar la misma escala en todos los ejes\" para no distorsionar ángulos)",
+      arclength: "Incluir longitud de arco (¡animación lenta!)"
     },
     github: "GitHub",
     builtWith: "Desarrollado con React, FastAPI, Celery y Manim",
@@ -63,16 +65,18 @@ const translations = {
     sceneLabels: {
       tracing: "Tracing",
       rotation: "Rotation",
-      tangentvector: "Tangent vector",
-      tangentline: "Tangent line",
+      tangentvector: "Derivative",
+      tangentline: "Tangent",
       normal: "Normal",
+      arclength: "Arc length"
     },
     sceneDescriptions: {
       tracing: "",
       rotation: "Rotate curve 360° in 3D",
-      tangentvector: "Include derivative and tangent vector",
+      tangentvector: "Include derivative and velocity vector",
       tangentline: "Include tangent line",
       normal: "Include normal line or plane (activate \"Use the same scale for all axes\" in order not to distort angles)",
+      arclength: "Include arc length (slow animation!)"
     },
     github: "GitHub",
     builtWith: "Built with React, FastAPI, Celery and Manim",
@@ -83,7 +87,7 @@ const translations = {
   },
 };
 
-const SCENE_KEYS = ["tracing", "rotation", "tangentvector", "tangentline", "normal"] as const;
+const SCENE_KEYS = ["tracing", "rotation", "tangentvector", "tangentline", "normal", "arclength"] as const;
 type SceneKey = typeof SCENE_KEYS[number];
 
 type Language = "en" | "es";
@@ -349,6 +353,18 @@ export default function App() {
                   {t.sceneDescriptions["normal"]}
                 </FieldLabel>
               </Field>
+
+              <Field orientation="horizontal">
+                <Checkbox
+                  id="includeArcLength"
+                  name="includeArcLength"
+                  checked={includedScenes["arclength"]}
+                  onCheckedChange={value => setIncludedScenes({ ...includedScenes, "arclength": !!value })}
+                />
+                <FieldLabel htmlFor="includeArcLength">
+                  {t.sceneDescriptions["arclength"]}
+                </FieldLabel>
+              </Field>
             </FieldGroup>
           </FieldSet>
 
@@ -373,43 +389,56 @@ export default function App() {
 
           {/* Tabs */}
           <div className="space-y-4">
-            <div className="flex gap-2 border-b">
-              {SCENE_KEYS.map((sceneKey) => {
-                if (!includedScenes[sceneKey])
-                  return null;
+            <div className="border-b overflow-x-auto scrollbar-hide">
+              <div className="flex gap-2 min-w-max">
+                {SCENE_KEYS.map((sceneKey) => {
+                  if (!includedScenes[sceneKey])
+                    return null;
 
-                const isReady = !!videoUrls[sceneKey];
+                  const isReady = !!videoUrls[sceneKey];
 
-                return (
-                  <button
-                    key={sceneKey}
-                    onClick={() => setActiveTab(sceneKey)}
-                    className={`px-4 py-2 text-sm font-medium border-b-2 transition flex items-center gap-2
-                      ${
-                        activeTab === sceneKey
-                          ? "border-black text-black"
-                          : "border-transparent text-gray-500 hover:text-black"
-                      }
-                    `}
-                  >
-                    {t.sceneLabels[sceneKey]}
+                  return (
+                    <button
+                      key={sceneKey}
+                      onClick={() => setActiveTab(sceneKey)}
+                      className={`
+                        shrink-0
+                        whitespace-nowrap
+                        px-4
+                        py-2
+                        text-sm
+                        font-medium
+                        border-b-2
+                        transition
+                        flex
+                        items-center
+                        gap-2
+                        ${
+                          activeTab === sceneKey
+                            ? "border-black text-black"
+                            : "border-transparent text-gray-500 hover:text-black"
+                        }
+                      `}
+                    >
+                      {t.sceneLabels[sceneKey]}
 
-                    {!isReady && loading && (
-                      <Loader2
-                        className="animate-spin"
-                        size={14}
-                      />
-                    )}
+                      {!isReady && loading && (
+                        <Loader2
+                          className="animate-spin"
+                          size={14}
+                        />
+                      )}
 
-                    {isReady && (
-                      <Check
-                        size={14}
-                        className="text-green-600"
-                      />
-                    )}
-                  </button>
-                );
-              })}
+                      {isReady && (
+                        <Check
+                          size={14}
+                          className="text-green-600"
+                        />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {renderVideoPanel()}

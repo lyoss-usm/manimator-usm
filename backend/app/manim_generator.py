@@ -54,37 +54,39 @@ class BaseCurveScene(ThreeDScene):
         substitutions = {"pi": PI, "tau": TAU}
 
         # Crear función f y dominio [a, b]
-        f_coord_exprs: list[sympy.Expr] = [
+        self.f_coord_exprs: list[sympy.Expr] = [
             parse_latex(tex).subs("e", sympy.E) for tex in f_coord_texes
         ]
-        f_coord_lambdas = [
-            sympy.lambdify("t", expr.evalf(subs=substitutions)) for expr in f_coord_exprs
+        self.f_coord_lambdas = [
+            sympy.lambdify("t", expr.evalf(subs=substitutions)) for expr in self.f_coord_exprs
         ]
-        self.f = lambda t: [f_coord_lambda(t) for f_coord_lambda in f_coord_lambdas]
+        self.f = lambda t: [f_coord_lambda(t) for f_coord_lambda in self.f_coord_lambdas]
         self.a = float(parse_latex(a_tex).evalf(subs=substitutions))
         self.b = float(parse_latex(b_tex).evalf(subs=substitutions))
 
-        velocity_coord_exprs = [sympy.diff(expr, "t") for expr in f_coord_exprs]
+        self.velocity_coord_exprs = [sympy.diff(expr, "t") for expr in self.f_coord_exprs]
+        self.velocity_coord_texes = [sympy.latex(expr) for expr in self.velocity_coord_exprs]
         self.velocity_tex = (
             r"\begin{pmatrix}"
-            + r" \\ ".join(sympy.latex(expr) for expr in velocity_coord_exprs)
+            + r" \\ ".join(tex for tex in self.velocity_coord_texes)
             + r"\end{pmatrix}"
         )
-        velocity_coord_lambdas = [
+        self.velocity_coord_lambdas = [
             sympy.lambdify("t", expr.evalf(subs=substitutions))
-            for expr in velocity_coord_exprs
+            for expr in self.velocity_coord_exprs
         ]
         self.velocity = lambda t: [
-            velocity_coord_lambda(t) for velocity_coord_lambda in velocity_coord_lambdas
+            velocity_coord_lambda(t) for velocity_coord_lambda in self.velocity_coord_lambdas
         ]
 
-        acceleration_coord_exprs = [sympy.diff(expr, "t") for expr in velocity_coord_exprs]
-        acceleration_coord_lambdas = [
+        self.acceleration_coord_exprs = [sympy.diff(expr, "t") for expr in self.velocity_coord_exprs]
+        self.acceleration_coord_texes = [sympy.latex(expr) for expr in self.acceleration_coord_exprs]
+        self.acceleration_coord_lambdas = [
             sympy.lambdify("t", expr.evalf(subs=substitutions))
-            for expr in acceleration_coord_exprs
+            for expr in self.acceleration_coord_exprs
         ]
         self.acceleration = lambda t: [
-            accel_coord_lambda(t) for accel_coord_lambda in acceleration_coord_lambdas
+            accel_coord_lambda(t) for accel_coord_lambda in self.acceleration_coord_lambdas
         ]
 
         self.run_time = 8.0
@@ -684,7 +686,284 @@ class BaseCurveScene(ThreeDScene):
         self.wait()
 
     def animate_arc_length(self) -> None:
-        pass
+        self.wait()
+
+        arc_length_tex = r"\sqrt{(\Delta x_i)^2 + (\Delta y_i)^2"
+        if self.dim == 3:
+            arc_length_tex += r" + (\Delta z_i)^2"
+        arc_length_tex += "}"
+        self.arc_length_tex_mob = MathTex("S", r"\approx", r"\sum_{i = 1}^N", arc_length_tex)
+        self.arc_length_tex_mob[0].set_color(PURPLE)
+        self.arc_length_tex_mob.scale(
+            self.f_tex_mob[0][4].width / self.arc_length_tex_mob[1].width
+        )
+
+        group = VGroup(
+            self.arc_length_tex_mob, self.f_tex_mob.generate_target()
+        ).arrange(DOWN)
+        if group.width > 0.9 * MAX_LEFT_WIDTH:
+            group.scale_to_fit_width(0.9 * MAX_LEFT_WIDTH)
+        if group.height > MAX_LEFT_HEIGHT:
+            group.scale_to_fit_height(MAX_LEFT_HEIGHT)
+        group.next_to(self.interval, UP).set_y(self.f_tex_mob.get_y())
+        if group.get_top()[1] > 4.0 - 0.8:
+            group.to_edge(UP, buff=0.8)
+
+        self.play(
+            LaggedStart(
+                MoveToTarget(self.f_tex_mob),
+                Write(self.arc_length_tex_mob),
+                lag_ratio=0.5,
+            ),
+        )
+        self.wait()
+
+        self.play(
+            self.curve.animate.set_stroke(opacity=0.2),
+            run_time=0.5
+        )
+        
+        exponent = ValueTracker(np.log(5))
+
+        def get_N() -> int:
+            return round(np.exp(exponent.get_value()))
+
+        def coord_at(i: int, N: int) -> list[float]:
+            t = self.a + i / N * (self.b - self.a)
+            return self.f(t)
+
+        def point_at(i: int, N: int) -> np.ndarray:
+            return self.axes.c2p(coord_at(i, N))
+
+        def get_S(N: int) -> float:
+            coords = np.array([coord_at(i, N) for i in range(N + 1)])
+            lengths = np.linalg.norm(coords[1:] - coords[:-1], axis=1)
+            return lengths.sum()
+
+        old_N = None
+
+        def update_group(group: VGroup) -> None:
+            nonlocal old_N
+
+            N = get_N()
+            if N == old_N:
+                return
+
+            if old_N is None:
+                old_N = N
+
+            n_S_tex, segments, dots = group
+
+            points = [point_at(i, N) for i in range(N + 1)]
+
+            dots[0].move_to(points[0]).scale(0.985)
+            for i in range(old_N):
+                segments[i].put_start_and_end_on(points[i], points[i + 1])
+                dots[i + 1].move_to(points[i + 1]).scale(0.985)
+            for i in range(old_N, N):
+                segments.add(segments[-1].copy().put_start_and_end_on(points[i], points[i + 1]))
+                dots.add(dots[-1].copy().move_to(points[i + 1]))
+
+            new_tex = MathTex(rf"N = {N} \quad \Rightarrow \quad", "S", f"= {get_S(N):.2f}")
+            new_tex.move_to(n_S_tex)
+            new_tex[1].set_color(PURPLE)
+
+            n_S_tex.become(new_tex)
+
+            old_N = N
+
+        start_n = get_N()
+        start_points = [point_at(i, start_n) for i in range(start_n + 1)]
+        n_S_tex = MathTex("a").move_to(self.arc_length_tex_mob).to_edge(UP, buff=0.8)
+        segments = VGroup(
+            Line(start_points[i], start_points[i + 1]).set_color(PURPLE)
+            for i in range(start_n)
+        )
+        dots = VGroup(
+            Dot(start_points[i]).scale(1.5).set_color(YELLOW)
+            for i in range(start_n + 1)
+        )
+        N_group = VGroup(n_S_tex, segments, dots)
+
+        update_group(N_group)
+
+        self.play(
+            Create(segments, rate_func=linear),
+            LaggedStart(
+                *[DrawBorderThenFill(dot) for dot in dots],
+                lag_ratio=0.5,
+            ),
+            run_time=2.0,
+        )
+
+        self.play(
+            LaggedStart(
+                VGroup(self.f_tex_mob, self.arc_length_tex_mob).animate.shift(0.5*DOWN),
+                Write(n_S_tex),
+                lag_ratio=0.5,
+            )
+        )
+        self.wait(0.5)
+
+        self.add(N_group)
+        N_group.add_updater(update_group)
+
+        self.play(
+            exponent.animate.set_value(np.log(50)),
+            run_time=6.0
+        )
+        N_group.clear_updaters()
+        self.wait(1.5)
+
+        curve_copy = self.curve.copy().set_stroke(PURPLE, opacity=1.0)
+
+        self.play(FadeOut(segments, dots, self.curve))
+
+        final_N = 1000
+
+        new_n_S_tex = MathTex(
+            r"N \to \infty \quad \Rightarrow \quad",
+            "S",
+            f"= {get_S(final_N):.2f}",
+        ).move_to(n_S_tex)
+        new_n_S_tex[1].set_color(PURPLE)
+        self.play(
+            Transform(n_S_tex, new_n_S_tex),
+            Create(curve_copy, run_time=2.0, rate_func=linear),
+        )
+        self.wait(2.0)
+
+        self.play(
+            FadeOut(n_S_tex),
+            self.arc_length_tex_mob.animate.to_edge(UP, buff=0.8),
+        )
+        self.wait(1.0)
+
+        altm = self.arc_length_tex_mob
+
+        new_arc_length_tex = r"\sqrt{\left( \frac{\Delta x_i}{\Delta t} \right)^2 + \left( \frac{\Delta y_i}{\Delta t} \right)^2"
+        if self.dim == 3:
+            new_arc_length_tex += r" + \left( \frac{\Delta z_i}{\Delta t} \right)^2"
+        new_arc_length_tex += r"} \ \Delta t"
+
+        naltm = MathTex("S", r"\approx", r"\sum_{i=1}^N", new_arc_length_tex)
+        naltm[0].set_color(PURPLE)
+        naltm.scale(altm[1].width / naltm[1].width).move_to(altm)
+
+        sources = [altm[:3], altm[3][0]]
+        targets = [naltm[:3], naltm[3][0]]
+        for i in range(self.dim):
+            sources += [
+                altm[3][1 + 7*i : 3 + 7*i],
+                altm[3][3 + 7*i : 6 + 7*i],
+                altm[3][6 + 7*i : 8 + 7*i],
+            ]
+            targets += [
+                naltm[3][1 + 10*i : 3 + 10*i],
+                naltm[3][3 + 10*i : 9 + 10*i],
+                naltm[3][9 + 10*i : 11 + 10*i],
+            ]
+        targets.append(naltm[3][-2:])
+        
+        # animations = [
+        #     Transform(altm[:3], naltm[:3]),
+        #     Transform(altm[3][0], naltm[3][0]),
+        #     FadeIn(naltm[3][-2:], run_time=1.0),
+        # ]
+        # for i in range(self.dim):
+        #     animations += [
+        #         Transform(altm[3][1 + 7*i : 3 + 7*i], naltm[3][1 + 10*i : 3 + 10*i]), # plus/sqrt bar + open parenthesis 
+        #         Transform(altm[3][3 + 7*i : 6 + 7*i], naltm[3][3 + 10*i : 9 + 10*i]), # Delta
+        #         Transform(altm[3][6 + 7*i : 8 + 7*i], naltm[3][9 + 10*i : 11 + 10*i]), # close parenthesis + squared
+        #     ]
+
+        self.remove(altm)
+        self.play(
+            (Transform(source, target) for source, target in zip(sources, targets[:-1])),
+            FadeIn(targets[-1], run_time=1.0),
+        )
+        self.remove(*sources)
+        self.add(*targets)
+        self.wait(1.0)
+
+        new_arc_length_tex = r"\sqrt{\left( \frac{\text{d} x}{\text{d} t} \right)^2 + \left( \frac{\text{d} y}{\text{d} t} \right)^2"
+        if self.dim == 3:
+            new_arc_length_tex += r" + \left( \frac{\text{d} z}{\text{d} t} \right)^2"
+        new_arc_length_tex += r"} \ \text{d} t"
+
+        naltm = MathTex("S", "=", r"\int_{" + self.a_tex + "}^{" + self.b_tex + "}", new_arc_length_tex)
+        naltm[0].set_color(PURPLE)
+        naltm.scale(altm[1].width / naltm[1].width).move_to(VGroup(*targets))
+
+        sources = targets
+        targets = [naltm[:3], naltm[3][0]]
+        for i in range(self.dim):
+            targets += [
+                naltm[3][1 + 9*i : 3 + 9*i],
+                naltm[3][3 + 9*i : 8 + 9*i],
+                naltm[3][8 + 9*i : 10 + 9*i],
+            ]
+        targets.append(naltm[3][-2:])
+        for target in targets[3::3]:
+            target.set_color(GREEN)
+
+        self.play(
+            Transform(source, target) for source, target in zip(sources, targets)
+        )
+        self.remove(*sources)
+        self.add(altm.become(naltm))
+        self.wait()
+
+        altm_substituted = MathTex(
+            r"&= \int_{" + self.a_tex + "}^{" + self.b_tex + "}",
+            r"\sqrt{" + "+".join(rf"\left({tex}\right)^2" for tex in self.velocity_coord_texes) + "}",
+            r"\ \text{d}t",
+        ).set_opacity(0.0)
+        altm_substituted.scale(altm[1].width / altm_substituted[0][0].width).next_to(altm, DOWN)
+        altm_substituted.shift(
+            (altm[1].get_x() - altm_substituted[0][0].get_x()) * RIGHT
+        )
+        expr_lengths = [len(MathTex(tex)[0].submobjects) for tex in self.velocity_coord_texes]
+        i = 3
+        for length in expr_lengths:
+            altm_substituted[1][i : i + length].set_color(GREEN)
+            i += length + 4
+
+        group = VGroup(
+            altm,
+            altm_substituted,
+            self.f_tex_mob,
+        )
+        group.generate_target()
+        group.target[2].next_to(group.target[:2].set_opacity(1.0), DOWN)
+        if group.target.width > MAX_LEFT_WIDTH:
+            group.target.scale_to_fit_width(MAX_LEFT_WIDTH)
+        if group.target.height > MAX_LEFT_HEIGHT:
+            group.target.scale_to_fit_height(MAX_LEFT_HEIGHT)
+        group.target.move_to(VGroup(altm, self.f_tex_mob))
+
+        self.play(MoveToTarget(group))
+        self.wait(1.0)
+
+        arc_length_value_tex_mob = MathTex(rf"\approx {get_S(final_N):.2f}").set_opacity(0.0)
+        arc_length_value_tex_mob.scale(altm[1].width / arc_length_value_tex_mob[0][0].width).next_to(altm_substituted, DOWN)
+        arc_length_value_tex_mob.shift(
+            (altm[1].get_x() - arc_length_value_tex_mob[0][0].get_x()) * RIGHT
+        )
+        group = VGroup(
+            altm,
+            altm_substituted,
+            arc_length_value_tex_mob,
+            self.f_tex_mob,
+        )
+        group.generate_target()
+        group.target[3].next_to(group.target[:3].set_opacity(1.0), DOWN)
+        if group.target.height > MAX_LEFT_HEIGHT:
+            group.target.scale_to_fit_height(MAX_LEFT_HEIGHT)
+        group.target.move_to(group)
+
+        self.play(MoveToTarget(group))
+        self.wait(2.0)
 
 
 class TracingCurveScene(BaseCurveScene):
@@ -725,6 +1004,14 @@ class NormalScene(BaseCurveScene):
         self.animate_normal()
 
 
+class ArcLengthScene(BaseCurveScene):
+    def construct(self):
+        self.setup_scene()
+        self.add(self.curve)
+        self.remove(self.t_dot_group, self.f_dot)
+        self.animate_arc_length()
+        
+
 def test_texes(f_tex: str, a_tex: str, b_tex: str) -> None:
     for tex, name in [(f_tex, "f_tex"), (a_tex, "a_tex"), (b_tex, "b_tex")]:
         MathTex(tex)
@@ -759,6 +1046,7 @@ def render_scene(
         "tangentvector": TangentVectorScene,
         "tangentline": TangentLineScene,
         "normal": NormalScene,
+        "arclength": ArcLengthScene,
     }[scene_key]
 
     if not Path(f"/manim/media/videos/720p30/{output_filename}.mp4").exists():
@@ -773,6 +1061,6 @@ if __name__ == "__main__":
         r"\cos(t), \sin(t), e^t",
         r"0",
         r"2\pi",
-        "normal",
+        "arclength",
         {"preserve_aspect_ratio": False}
     )

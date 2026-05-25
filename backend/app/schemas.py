@@ -17,6 +17,7 @@ class IncludedScenes(TypedDict):
     tangentvector: bool
     tangentline: bool
     normal: bool
+    arclength: bool
 
     
 class SceneConfig(TypedDict):
