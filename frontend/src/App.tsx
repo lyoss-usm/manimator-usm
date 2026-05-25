@@ -39,7 +39,7 @@ const translations = {
       rotation: "Rotar curva 360° en 3D",
       tangentvector: "Incluir derivada y vector tangente",
       tangentline: "Incluir recta tangente",
-      normal: "Incluir recta o plano normal",
+      normal: "Incluir recta o plano normal (activar \"Usar la misma escala en todos los ejes\" para no distorsionar ángulos)",
     },
     github: "GitHub",
     builtWith: "Desarrollado con React, FastAPI, Celery y Manim",
@@ -72,7 +72,7 @@ const translations = {
       rotation: "Rotate curve 360° in 3D",
       tangentvector: "Include derivative and tangent vector",
       tangentline: "Include tangent line",
-      normal: "Include normal line or plane",
+      normal: "Include normal line or plane (activate \"Use the same scale for all axes\" in order not to distort angles)",
     },
     github: "GitHub",
     builtWith: "Built with React, FastAPI, Celery and Manim",
@@ -335,6 +335,18 @@ export default function App() {
                 />
                 <FieldLabel htmlFor="includeTangentLine">
                   {t.sceneDescriptions["tangentline"]}
+                </FieldLabel>
+              </Field>
+
+              <Field orientation="horizontal">
+                <Checkbox
+                  id="includeNormal"
+                  name="includeNormal"
+                  checked={includedScenes["normal"]}
+                  onCheckedChange={value => setIncludedScenes({ ...includedScenes, "normal": !!value })}
+                />
+                <FieldLabel htmlFor="includeNormal">
+                  {t.sceneDescriptions["normal"]}
                 </FieldLabel>
               </Field>
             </FieldGroup>

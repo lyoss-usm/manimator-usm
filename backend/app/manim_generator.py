@@ -11,6 +11,9 @@ from app.schemas import SceneConfig
 Dot.set_default(num_components=4)
 
 
+MAX_LEFT_WIDTH = 5.5
+MAX_LEFT_HEIGHT = 4.5
+
 class BaseCurveScene(ThreeDScene):
     def __init__(
         self,
@@ -61,18 +64,27 @@ class BaseCurveScene(ThreeDScene):
         self.a = float(parse_latex(a_tex).evalf(subs=substitutions))
         self.b = float(parse_latex(b_tex).evalf(subs=substitutions))
 
-        df_dt_coord_exprs = [sympy.diff(expr, "t") for expr in f_coord_exprs]
-        self.df_dt_tex = (
+        velocity_coord_exprs = [sympy.diff(expr, "t") for expr in f_coord_exprs]
+        self.velocity_tex = (
             r"\begin{pmatrix}"
-            + r" \\ ".join(sympy.latex(expr) for expr in df_dt_coord_exprs)
+            + r" \\ ".join(sympy.latex(expr) for expr in velocity_coord_exprs)
             + r"\end{pmatrix}"
         )
-        df_dt_coord_lambdas = [
+        velocity_coord_lambdas = [
             sympy.lambdify("t", expr.evalf(subs=substitutions))
-            for expr in df_dt_coord_exprs
+            for expr in velocity_coord_exprs
         ]
-        self.df_dt = lambda t: [
-            df_dt_coord_lambda(t) for df_dt_coord_lambda in df_dt_coord_lambdas
+        self.velocity = lambda t: [
+            velocity_coord_lambda(t) for velocity_coord_lambda in velocity_coord_lambdas
+        ]
+
+        acceleration_coord_exprs = [sympy.diff(expr, "t") for expr in velocity_coord_exprs]
+        acceleration_coord_lambdas = [
+            sympy.lambdify("t", expr.evalf(subs=substitutions))
+            for expr in acceleration_coord_exprs
+        ]
+        self.acceleration = lambda t: [
+            accel_coord_lambda(t) for accel_coord_lambda in acceleration_coord_lambdas
         ]
 
         self.run_time = 8.0
@@ -86,6 +98,41 @@ class BaseCurveScene(ThreeDScene):
                 "El punto o vector retornado por la función debe ser 2D o 3D. "
                 f"Actualmente, es {self.dim}D."
             )
+
+    def tangent(self, t: float) -> np.ndarray | None:
+        velocity = np.asarray(self.velocity(t))
+        norm = np.linalg.norm(velocity)
+        if norm == 0.0:
+            return None
+        return velocity / norm
+
+    def binormal(self, t: float) -> np.ndarray | None:
+        if self.dim == 2:
+            raise NotImplementedError()
+        velocity = self.velocity(t)
+        accel = self.acceleration(t)
+        product = np.cross(velocity, accel)
+        norm = np.linalg.norm(product)
+        if norm == 0.0:
+            return None
+        return product / norm
+
+    def normal(self, t: float) -> np.ndarray | None:
+        if self.dim == 2:
+            tangent = self.tangent(t)
+            if tangent is None:
+                return None
+            x, y = tangent
+            rotated = np.array([y, -x]) # Vector rotado -90°
+            if np.dot(rotated, self.acceleration(t)) >= 0.0:
+                return rotated
+            return -rotated
+
+        tangent = self.tangent(t)
+        binormal = self.binormal(t)
+        if tangent is None or binormal is None:
+            return None
+        return np.cross(binormal, tangent)
 
     def get_alpha(self, t: float | ValueTracker) -> float:
         if isinstance(t, ValueTracker):
@@ -106,10 +153,10 @@ class BaseCurveScene(ThreeDScene):
             rf"\mathbf{{f}}(t) &= {self.f_tex} \\",
             rf"t &\in \left[{self.a_tex},\, {self.b_tex}\right]"
         )
-        if self.f_tex_mob.width > 4.5:
-            self.f_tex_mob.scale_to_fit_width(4.5)
-        if self.f_tex_mob.height > 4.5:
-            self.f_tex_mob.scale_to_fit_height(4.5)
+        if self.f_tex_mob.width > MAX_LEFT_WIDTH:
+            self.f_tex_mob.scale_to_fit_width(MAX_LEFT_WIDTH)
+        if self.f_tex_mob.height > MAX_LEFT_HEIGHT:
+            self.f_tex_mob.scale_to_fit_height(MAX_LEFT_HEIGHT)
 
         self.interval = VGroup()
         self.interval.add(VGroup(Line(ORIGIN, 0.8*RIGHT).set_color(color) for color in rainbow).arrange(RIGHT, buff=0.0))
@@ -121,14 +168,14 @@ class BaseCurveScene(ThreeDScene):
             if self.interval[i].width > 2.0:
                 self.interval[i].scale_to_fit_width(2.0).next_to(self.interval[i-2], DOWN)
 
-        self.interval.move_to(4 * LEFT).to_edge(DOWN, buff=0.8)
+        self.interval.move_to(3.5 * LEFT).to_edge(DOWN, buff=0.8)
         
         self.t_dot_group = VGroup(
             Dot().set_color(YELLOW).scale(2),
             DecimalNumber(self.a),
         ).move_to(self.interval)
 
-        self.f_tex_mob.move_to(4 * LEFT + UP)
+        self.f_tex_mob.move_to(3.5 * LEFT + UP)
         
         def update_t_dot_group(t_dot_group: VGroup) -> None:
             start, end = self.interval[0][0].get_start(), self.interval[0][-1].get_end()
@@ -209,7 +256,7 @@ class BaseCurveScene(ThreeDScene):
             self.axes.add(self.axes.get_axis_labels())
             self.axes.scale(0.9).rotate(-TAU/4, RIGHT).rotate(-TAU/15, UP).rotate(TAU/12, RIGHT)
 
-        self.axes.add_coordinates().move_to(2.5 * RIGHT)
+        self.axes.add_coordinates().center().to_edge(RIGHT, buff=1.0 if self.dim == 2 else 1.5)
 
         curve_template = VMobject().set_points_as_corners(self.axes.c2p(f_values)).make_smooth()
         self.curve = VGroup()
@@ -268,16 +315,22 @@ class BaseCurveScene(ThreeDScene):
 
         self.wait()
 
-        self.df_dt_tex_mob = MathTex(rf"\frac{{\text{{d}}\mathbf{{f}}}}{{\text{{d}}t}}(t) = {self.df_dt_tex}")
-        self.df_dt_tex_mob.scale(self.f_tex_mob[0][4].width / self.df_dt_tex_mob[0][8].width)
+        self.velocity_tex_mob = MathTex(
+            rf"\frac{{\text{{d}}\mathbf{{f}}}}{{\text{{d}}t}}(t) = {self.velocity_tex}"
+        )
+        self.velocity_tex_mob.scale(
+            self.f_tex_mob[0][4].width / self.velocity_tex_mob[0][8].width
+        )
         group = VGroup(
-            self.df_dt_tex_mob, self.f_tex_mob.generate_target()
+            self.velocity_tex_mob, self.f_tex_mob.generate_target()
         ).arrange(DOWN)
-        self.df_dt_tex_mob.shift((self.f_tex_mob.target[0][4].get_x() - self.df_dt_tex_mob[0][8].get_x()) * RIGHT)
-        if group.width > 4.5:
-            group.scale_to_fit_width(4.5)
-        if group.height > 4.5:
-            group.scale_to_fit_height(4.5)
+        self.velocity_tex_mob.shift(
+            (self.f_tex_mob.target[0][4].get_x() - self.velocity_tex_mob[0][8].get_x()) * RIGHT
+        )
+        if group.width > MAX_LEFT_WIDTH:
+            group.scale_to_fit_width(MAX_LEFT_WIDTH)
+        if group.height > MAX_LEFT_HEIGHT:
+            group.scale_to_fit_height(MAX_LEFT_HEIGHT)
         group.next_to(self.interval, UP).set_y(self.f_tex_mob.get_y())
         if group.get_top()[1] > 4.0 - 0.8:
             group.to_edge(UP, buff=0.8)
@@ -285,26 +338,28 @@ class BaseCurveScene(ThreeDScene):
         self.play(
             LaggedStart(
                 MoveToTarget(self.f_tex_mob),
-                Write(self.df_dt_tex_mob),
+                Write(self.velocity_tex_mob),
                 lag_ratio=0.5,
             ),
         )
         self.wait()
         
-        self.df_dt_arrow = Arrow(color=YELLOW)
+        self.velocity_arrow = Arrow(color=YELLOW)
 
-        def update_df_dt_arrow(df_dt_arrow: Arrow) -> None:
+        def update_velocity_arrow(velocity_arrow: Arrow) -> None:
             t = self.t_tracker.get_value()
             start = self.f(t)
-            end = start + np.asarray(self.df_dt(t))
-            df_dt_arrow.become(Arrow(self.axes.c2p(start), self.axes.c2p(end), color=YELLOW, buff=0.0))
+            end = start + np.asarray(self.velocity(t))
+            velocity_arrow.become(
+                Arrow(self.axes.c2p(start), self.axes.c2p(end), color=YELLOW, buff=0.0)
+            )
 
-        update_df_dt_arrow(self.df_dt_arrow)
+        update_velocity_arrow(self.velocity_arrow)
         
-        self.play(FadeIn(self.t_dot_group, self.f_dot, self.df_dt_arrow), run_time=0.5)
+        self.play(FadeIn(self.t_dot_group, self.f_dot, self.velocity_arrow), run_time=0.5)
         self.wait(0.5)
 
-        self.df_dt_arrow.add_updater(update_df_dt_arrow)
+        self.velocity_arrow.add_updater(update_velocity_arrow)
 
         self.play(
             self.t_tracker.animate.set_value(self.b),
@@ -324,18 +379,22 @@ class BaseCurveScene(ThreeDScene):
         p_vector_tex += r"\end{pmatrix}"
         self.tangent_line_tex_mob = MathTex(
             r"L: \quad \mathbf{p} &= \mathbf{f}(t) + \lambda \frac{\text{d}\mathbf{f}}{\text{d}t}(t) \\",
-            rf"{p_vector_tex} &= {self.f_tex} + \lambda {self.df_dt_tex}",
+            rf"{p_vector_tex} &= {self.f_tex} + \lambda {self.velocity_tex}",
         )
         
-        self.tangent_line_tex_mob.scale(self.f_tex_mob[0][4].width / self.tangent_line_tex_mob[0][3].width)
+        self.tangent_line_tex_mob.scale(
+            self.f_tex_mob[0][4].width / self.tangent_line_tex_mob[0][3].width
+        )
         group = VGroup(
             self.tangent_line_tex_mob, self.f_tex_mob.generate_target()
         ).arrange(DOWN, buff=0.5)
-        self.tangent_line_tex_mob.shift((self.f_tex_mob.target[0][4].get_x() - self.tangent_line_tex_mob[0][5].get_x()) * RIGHT)
-        if group.width > 4.5:
-            group.scale_to_fit_width(4.5)
-        if group.height > 4.5:
-            group.scale_to_fit_height(4.5)
+        self.tangent_line_tex_mob.shift(
+            (self.f_tex_mob.target[0][4].get_x() - self.tangent_line_tex_mob[0][5].get_x()) * RIGHT
+        )
+        if group.width > MAX_LEFT_WIDTH:
+            group.scale_to_fit_width(MAX_LEFT_WIDTH)
+        if group.height > MAX_LEFT_HEIGHT:
+            group.scale_to_fit_height(MAX_LEFT_HEIGHT)
         group.next_to(self.interval, UP).set_y(self.f_tex_mob.get_y())
         if group.get_top()[1] > 4.0 - 0.8:
             group.to_edge(UP, buff=0.8)
@@ -352,20 +411,20 @@ class BaseCurveScene(ThreeDScene):
         self.play(Write(self.tangent_line_tex_mob[1]))
         self.wait()
         
-        self.tangent_line = Line(UP, DOWN).set_stroke(width=2.0)
-        self.df_dt_arrow = Arrow(color=YELLOW)
-        self.tangent_group = VGroup(self.tangent_line, self.df_dt_arrow)
+        self.tangent_line = Line(UP, DOWN).set_stroke(YELLOW_B, width=2.0)
+        self.velocity_arrow = Arrow(color=YELLOW)
+        self.tangent_group = VGroup(self.tangent_line, self.velocity_arrow)
 
         def update_tangent_group(tangent_group: VGroup) -> None:
             t = self.t_tracker.get_value()
-            df_dt_t = np.asarray(self.df_dt(t))
-            if all(df_dt_t == 0):
+            velocity = np.asarray(self.velocity(t))
+            if all(velocity == 0):
                 tangent_group.set_opacity(0.0)
                 return
             tangent_group[0].set_opacity(0.5)
             tangent_group[1].set_opacity(1.0)
             arrow_start = self.f(t)
-            arrow_end = arrow_start + df_dt_t
+            arrow_end = arrow_start + velocity
 
             ranges = [self.axes.x_range, self.axes.y_range]
             if self.dim == 3:
@@ -373,17 +432,19 @@ class BaseCurveScene(ThreeDScene):
             start_factor = float("-inf")
             end_factor = float("inf")
             for i in range(self.dim):
-                if df_dt_t[i] > 0:
-                    start_factor = max(start_factor, (ranges[i][0] - arrow_start[i]) / df_dt_t[i])
-                    end_factor = min(end_factor, (ranges[i][1] - arrow_start[i]) / df_dt_t[i])
-                elif df_dt_t[i] < 0:
-                    start_factor = max(start_factor, (ranges[i][1] - arrow_start[i]) / df_dt_t[i])
-                    end_factor = min(end_factor, (ranges[i][0] - arrow_start[i]) / df_dt_t[i])
-            down_left_in = np.array([r[0] for r in ranges])
-            up_right_out = np.array([r[1] for r in ranges])
+                if velocity[i] == 0:
+                    continue
+                lower = (ranges[i][0] - arrow_start[i]) / velocity[i]
+                upper = (ranges[i][1] - arrow_start[i]) / velocity[i]
+                if velocity[i] > 0:
+                    start_factor = max(start_factor, lower)
+                    end_factor = min(end_factor, upper)
+                else:
+                    start_factor = max(start_factor, upper)
+                    end_factor = min(end_factor, lower)
 
-            line_start = arrow_start + start_factor * df_dt_t
-            line_end = arrow_start + end_factor * df_dt_t
+            line_start = arrow_start + start_factor * velocity
+            line_end = arrow_start + end_factor * velocity
 
             new_arrow = Arrow(
                 self.axes.c2p(arrow_start),
@@ -402,6 +463,177 @@ class BaseCurveScene(ThreeDScene):
         self.wait(0.5)
 
         self.tangent_group.add_updater(update_tangent_group)
+
+        self.play(
+            self.t_tracker.animate.set_value(self.b),
+            run_time=self.run_time,
+            rate_func=linear,
+        )
+        self.wait()
+
+    def animate_normal(self) -> None:
+        self.t_tracker.set_value(self.a)
+
+        self.wait()
+
+        p_vector_tex = r"\begin{pmatrix} x \\ y "
+        if self.dim == 3:
+            p_vector_tex += r"\\ z "
+        p_vector_tex += r"\end{pmatrix}"
+        self.normal_tex_mob = MathTex(
+            r"N: \quad \frac{\text{d}\mathbf{f}}{\text{d}t}(t) \cdot \left( \mathbf{p} - \mathbf{f}(t) \right) &= 0 \\",
+            rf"{self.velocity_tex} \cdot \left( {p_vector_tex} - {self.f_tex} \right) &= 0",
+        )
+        
+        self.normal_tex_mob.scale(
+            self.f_tex_mob[0][4].width / self.normal_tex_mob[0][19].width
+        )
+        group = VGroup(
+            self.normal_tex_mob, self.f_tex_mob.generate_target()
+        ).arrange(DOWN, buff=0.5)
+        if group.width > MAX_LEFT_WIDTH:
+            group.scale_to_fit_width(MAX_LEFT_WIDTH)
+        if group.height > MAX_LEFT_HEIGHT:
+            group.scale_to_fit_height(MAX_LEFT_HEIGHT)
+        group.next_to(self.interval, UP).set_y(self.f_tex_mob.get_y())
+        if group.get_top()[1] > 4.0 - 0.8:
+            group.to_edge(UP, buff=0.8)
+
+        self.play(
+            LaggedStart(
+                MoveToTarget(self.f_tex_mob),
+                Write(self.normal_tex_mob[0]),
+                lag_ratio=0.5,
+            ),
+        )
+        self.wait(1.5)
+
+        self.play(Write(self.normal_tex_mob[1]))
+        self.wait()
+        
+        if self.dim == 2:
+            self.normal_mob = Line(UP, DOWN).set_stroke(PURPLE_A, width=2.0)
+        else:
+            self.normal_mob = VGroup(
+                Square().set_stroke(PURPLE_A, width=2.0).set_fill(PURPLE_A, opacity=0.3),
+                *[Line().set_stroke(PURPLE_A, width=1.0) for _ in range(6)],
+            )
+        self.normal_arrow = Arrow(color=RED)
+        self.binormal_arrow = Arrow(color=BLUE)
+        if self.dim == 2:
+            self.binormal_arrow.set_opacity(0.0)
+        self.normal_group = VGroup(self.normal_mob, self.normal_arrow, self.binormal_arrow)
+
+        def update_normal_group(normal_group: VGroup) -> None:
+            t = self.t_tracker.get_value()
+
+            ranges = [self.axes.x_range, self.axes.y_range]
+            if self.dim == 3:
+                ranges.append(self.axes.z_range)
+            radius = 0.8 * min(r[2] for r in ranges)
+
+            position = np.asarray(self.f(t))
+            tangent = self.tangent(t)
+            if tangent is None:
+                normal_group.set_opacity(0.0)
+                return
+
+            normal = self.normal(t)
+            
+            if self.dim == 2:
+                # normal_group[0] es una recta normal
+                normal *= radius
+
+                start_factor = float("-inf")
+                end_factor = float("inf")
+                for i in range(self.dim):
+                    if normal[i] == 0:
+                        continue
+                    lower = (ranges[i][0] - position[i]) / normal[i]
+                    upper = (ranges[i][1] - position[i]) / normal[i]
+                    if normal[i] > 0:
+                        start_factor = max(start_factor, lower)
+                        end_factor = min(end_factor, upper)
+                    else:
+                        start_factor = max(start_factor, upper)
+                        end_factor = min(end_factor, lower)
+
+                line_start = position + start_factor * normal
+                line_end = position + end_factor * normal
+                
+                normal_group[0].set_stroke(RED_A, opacity=1.0).put_start_and_end_on(
+                    self.axes.c2p(line_start), self.axes.c2p(line_end)
+                )
+
+                normal_group[1].set_opacity(1.0).put_start_and_end_on(
+                    self.axes.c2p(position), self.axes.c2p(position + normal)
+                )
+
+            else:
+                # normal_group[0] es un plano normal
+                binormal = self.binormal(t)
+                if normal is None or binormal is None:
+                    normal = RIGHT - tangent[0] * tangent
+                    normal /= np.linalg.norm(normal)
+                    binormal = np.cross(normal, tangent)
+                    normal *= radius
+                    binormal *= radius
+                    major_circle = (
+                        VMobject()
+                        .set_stroke(YELLOW_B, width=2.0, opacity=1.0)
+                        .set_fill(YELLOW_B, opacity=0.5)
+                        .set_points_smoothly(
+                            [
+                                self.axes.c2p(position + np.cos(angle) * normal + np.sin(angle) * binormal)
+                                for angle in np.linspace(0, TAU, 13)
+                            ]
+                        )
+                    )
+                    minor_circle = major_circle.copy().scale(0.5).set_fill(opacity=0.0)
+                    normal_group[0][0].become(VGroup(major_circle, minor_circle))
+                    normal_group[0][1:].set_opacity(0.0)
+                    normal_group[1:].set_opacity(0.0)
+                    return
+                
+                normal *= radius
+                binormal *= radius
+
+                normal_group[0][0].submobjects = []
+                normal_group[0][0].set_stroke(PURPLE_A, opacity=1.0).set_fill(PURPLE_A, opacity=0.5).set_points_as_corners(
+                    [
+                        self.axes.c2p(position + shift)
+                        for shift in [
+                            normal + binormal,
+                            normal - binormal,
+                            -normal - binormal,
+                            -normal + binormal,
+                            normal + binormal,
+                        ]
+                    ]
+                )
+                for i in range(3):
+                    shift1 = 0.5 * (i - 1) * normal
+                    normal_group[0][i + 1].set_stroke(PURPLE_A, opacity=1.0).put_start_and_end_on(
+                        self.axes.c2p(position + shift1 + binormal), self.axes.c2p(position + shift1 - binormal)
+                    )
+                    shift2 = 0.5 * (i - 1) * binormal
+                    normal_group[0][i + 4].set_stroke(PURPLE_A, opacity=1.0).put_start_and_end_on(
+                        self.axes.c2p(position + shift2 + normal), self.axes.c2p(position + shift2 - normal)
+                    )
+                
+                normal_group[1].set_opacity(1.0).put_start_and_end_on(
+                    self.axes.c2p(position), self.axes.c2p(position + normal)
+                )
+                normal_group[2].set_opacity(1.0).put_start_and_end_on(
+                    self.axes.c2p(position), self.axes.c2p(position + binormal)
+                )
+
+        update_normal_group(self.normal_group)
+        
+        self.play(FadeIn(self.t_dot_group, self.f_dot, self.normal_group), run_time=0.5)
+        self.wait(0.5)
+
+        self.normal_group.add_updater(update_normal_group)
 
         self.play(
             self.t_tracker.animate.set_value(self.b),
@@ -440,6 +672,14 @@ class TangentLineScene(BaseCurveScene):
         self.animate_tangent_line()
 
 
+class NormalScene(BaseCurveScene):
+    def construct(self):
+        self.setup_scene()
+        self.add(self.curve)
+        self.remove(self.t_dot_group, self.f_dot)
+        self.animate_normal()
+
+
 def test_texes(f_tex: str, a_tex: str, b_tex: str) -> None:
     for tex, name in [(f_tex, "f_tex"), (a_tex, "a_tex"), (b_tex, "b_tex")]:
         MathTex(tex)
@@ -473,6 +713,7 @@ def render_scene(
         "rotation": RotatingCurveScene,
         "tangentvector": TangentVectorScene,
         "tangentline": TangentLineScene,
+        "normal": NormalScene,
     }[scene_key]
 
     if not Path(f"/manim/media/videos/720p30/{output_filename}.mp4").exists():
@@ -487,6 +728,6 @@ if __name__ == "__main__":
         r"\cos(t), \sin(t), e^t",
         r"0",
         r"2\pi",
-        "tangentvector",
+        "normal",
         {"preserve_aspect_ratio": False}
     )
