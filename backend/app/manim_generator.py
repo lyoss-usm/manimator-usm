@@ -153,6 +153,7 @@ class BaseCurveScene(ThreeDScene):
             rf"\mathbf{{f}}(t) &= {self.f_tex} \\",
             rf"t &\in \left[{self.a_tex},\, {self.b_tex}\right]"
         )
+        self.f_tex_mob[0].set_color(YELLOW)
         if self.f_tex_mob.width > MAX_LEFT_WIDTH:
             self.f_tex_mob.scale_to_fit_width(MAX_LEFT_WIDTH)
         if self.f_tex_mob.height > MAX_LEFT_HEIGHT:
@@ -317,7 +318,7 @@ class BaseCurveScene(ThreeDScene):
 
         self.velocity_tex_mob = MathTex(
             rf"\frac{{\text{{d}}\mathbf{{f}}}}{{\text{{d}}t}}(t) = {self.velocity_tex}"
-        )
+        ).set_color(GREEN)
         self.velocity_tex_mob.scale(
             self.f_tex_mob[0][4].width / self.velocity_tex_mob[0][8].width
         )
@@ -344,14 +345,14 @@ class BaseCurveScene(ThreeDScene):
         )
         self.wait()
         
-        self.velocity_arrow = Arrow(color=YELLOW)
+        self.velocity_arrow = Arrow(color=GREEN)
 
         def update_velocity_arrow(velocity_arrow: Arrow) -> None:
             t = self.t_tracker.get_value()
             start = self.f(t)
             end = start + np.asarray(self.velocity(t))
             velocity_arrow.become(
-                Arrow(self.axes.c2p(start), self.axes.c2p(end), color=YELLOW, buff=0.0)
+                Arrow(self.axes.c2p(start), self.axes.c2p(end), color=GREEN, buff=0.0)
             )
 
         update_velocity_arrow(self.velocity_arrow)
@@ -379,8 +380,21 @@ class BaseCurveScene(ThreeDScene):
         p_vector_tex += r"\end{pmatrix}"
         self.tangent_line_tex_mob = MathTex(
             r"L: \quad \mathbf{p} &= \mathbf{f}(t) + \lambda \frac{\text{d}\mathbf{f}}{\text{d}t}(t) \\",
-            rf"{p_vector_tex} &= {self.f_tex} + \lambda {self.velocity_tex}",
+            p_vector_tex, "&=", self.f_tex, r"+ \lambda", self.velocity_tex,
         )
+        VGroup(
+            self.tangent_line_tex_mob[0][4:8],
+            self.tangent_line_tex_mob[3],
+        ).set_color(YELLOW)
+        VGroup(
+            self.tangent_line_tex_mob[0][0],
+            self.tangent_line_tex_mob[0][-8:],
+            self.tangent_line_tex_mob[5],
+        ).set_color(GREEN)
+        VGroup(
+            self.tangent_line_tex_mob[0][2],
+            self.tangent_line_tex_mob[1],
+        ).set_color(ORANGE)
         
         self.tangent_line_tex_mob.scale(
             self.f_tex_mob[0][4].width / self.tangent_line_tex_mob[0][3].width
@@ -408,48 +422,50 @@ class BaseCurveScene(ThreeDScene):
         )
         self.wait(1.5)
 
-        self.play(Write(self.tangent_line_tex_mob[1]))
+        self.play(Write(self.tangent_line_tex_mob[1:]))
         self.wait()
         
-        self.tangent_line = Line(UP, DOWN).set_stroke(YELLOW_B, width=2.0)
-        self.velocity_arrow = Arrow(color=YELLOW)
-        self.tangent_group = VGroup(self.tangent_line, self.velocity_arrow)
+        self.tangent_line = Line(UP, DOWN).set_stroke(GREEN_B, width=2.0)
+        self.tangent_arrow = Arrow(color=GREEN)
+        self.tangent_group = VGroup(self.tangent_line, self.tangent_arrow)
 
         def update_tangent_group(tangent_group: VGroup) -> None:
             t = self.t_tracker.get_value()
-            velocity = np.asarray(self.velocity(t))
-            if all(velocity == 0):
+            tangent = self.tangent(t)
+            if tangent is None:
                 tangent_group.set_opacity(0.0)
                 return
             tangent_group[0].set_opacity(0.5)
             tangent_group[1].set_opacity(1.0)
-            arrow_start = self.f(t)
-            arrow_end = arrow_start + velocity
+            position = self.f(t)
 
             ranges = [self.axes.x_range, self.axes.y_range]
             if self.dim == 3:
                 ranges.append(self.axes.z_range)
+            norm = 0.8 * min(r[2] for r in ranges)
+            tangent *= norm
+
             start_factor = float("-inf")
             end_factor = float("inf")
             for i in range(self.dim):
-                if velocity[i] == 0:
+                if tangent[i] == 0:
                     continue
-                lower = (ranges[i][0] - arrow_start[i]) / velocity[i]
-                upper = (ranges[i][1] - arrow_start[i]) / velocity[i]
-                if velocity[i] > 0:
+                lower = (ranges[i][0] - position[i]) / tangent[i]
+                upper = (ranges[i][1] - position[i]) / tangent[i]
+                if tangent[i] > 0:
                     start_factor = max(start_factor, lower)
                     end_factor = min(end_factor, upper)
                 else:
                     start_factor = max(start_factor, upper)
                     end_factor = min(end_factor, lower)
 
-            line_start = arrow_start + start_factor * velocity
-            line_end = arrow_start + end_factor * velocity
+            line_start = position + start_factor * tangent
+            line_end = position + end_factor * tangent
 
             new_arrow = Arrow(
-                self.axes.c2p(arrow_start),
-                self.axes.c2p(arrow_end),
-                color=YELLOW,
+                self.axes.c2p(position),
+                self.axes.c2p(position + tangent),
+                color=GREEN,
                 buff=0.0,
             )
             tangent_group[0].put_start_and_end_on(
@@ -482,8 +498,21 @@ class BaseCurveScene(ThreeDScene):
         p_vector_tex += r"\end{pmatrix}"
         self.normal_tex_mob = MathTex(
             r"N: \quad \frac{\text{d}\mathbf{f}}{\text{d}t}(t) \cdot \left( \mathbf{p} - \mathbf{f}(t) \right) &= 0 \\",
-            rf"{self.velocity_tex} \cdot \left( {p_vector_tex} - {self.f_tex} \right) &= 0",
+            self.velocity_tex, r"\cdot \left(", p_vector_tex, "-", self.f_tex, r"\right) &= 0",
         )
+        self.normal_tex_mob[0][0].set_color(PINK)
+        VGroup(
+            self.normal_tex_mob[0][14:18],
+            self.normal_tex_mob[5],
+        ).set_color(YELLOW)
+        VGroup(
+            self.normal_tex_mob[0][2:10],
+            self.normal_tex_mob[1],
+        ).set_color(GREEN)
+        VGroup(
+            self.normal_tex_mob[0][12],
+            self.normal_tex_mob[3],
+        ).set_color(ORANGE)
         
         self.normal_tex_mob.scale(
             self.f_tex_mob[0][4].width / self.normal_tex_mob[0][19].width
@@ -508,15 +537,15 @@ class BaseCurveScene(ThreeDScene):
         )
         self.wait(1.5)
 
-        self.play(Write(self.normal_tex_mob[1]))
+        self.play(Write(self.normal_tex_mob[1:]))
         self.wait()
         
         if self.dim == 2:
-            self.normal_mob = Line(UP, DOWN).set_stroke(PURPLE_A, width=2.0)
+            self.normal_mob = Line(UP, DOWN).set_stroke(PINK.lighter(0.5), width=2.0)
         else:
             self.normal_mob = VGroup(
-                Square().set_stroke(PURPLE_A, width=2.0).set_fill(PURPLE_A, opacity=0.3),
-                *[Line().set_stroke(PURPLE_A, width=1.0) for _ in range(6)],
+                Square().set_stroke(PINK.lighter(0.5), width=2.0).set_fill(PINK.lighter(0.5), opacity=0.3),
+                *[Line().set_stroke(PINK.lighter(0.5), width=1.0) for _ in range(6)],
             )
         self.normal_arrow = Arrow(color=RED)
         self.binormal_arrow = Arrow(color=BLUE)
@@ -530,7 +559,7 @@ class BaseCurveScene(ThreeDScene):
             ranges = [self.axes.x_range, self.axes.y_range]
             if self.dim == 3:
                 ranges.append(self.axes.z_range)
-            radius = 0.8 * min(r[2] for r in ranges)
+            norm = 0.8 * min(r[2] for r in ranges)
 
             position = np.asarray(self.f(t))
             tangent = self.tangent(t)
@@ -542,7 +571,7 @@ class BaseCurveScene(ThreeDScene):
             
             if self.dim == 2:
                 # normal_group[0] es una recta normal
-                normal *= radius
+                normal *= norm
 
                 start_factor = float("-inf")
                 end_factor = float("inf")
@@ -561,7 +590,7 @@ class BaseCurveScene(ThreeDScene):
                 line_start = position + start_factor * normal
                 line_end = position + end_factor * normal
                 
-                normal_group[0].set_stroke(RED_A, opacity=1.0).put_start_and_end_on(
+                normal_group[0].set_opacity(1.0).put_start_and_end_on(
                     self.axes.c2p(line_start), self.axes.c2p(line_end)
                 )
 
@@ -576,12 +605,12 @@ class BaseCurveScene(ThreeDScene):
                     normal = RIGHT - tangent[0] * tangent
                     normal /= np.linalg.norm(normal)
                     binormal = np.cross(normal, tangent)
-                    normal *= radius
-                    binormal *= radius
+                    normal *= norm
+                    binormal *= norm
                     major_circle = (
                         VMobject()
-                        .set_stroke(YELLOW_B, width=2.0, opacity=1.0)
-                        .set_fill(YELLOW_B, opacity=0.5)
+                        .set_stroke(GREEN_A, width=2.0, opacity=1.0)
+                        .set_fill(GREEN_A, opacity=0.5)
                         .set_points_smoothly(
                             [
                                 self.axes.c2p(position + np.cos(angle) * normal + np.sin(angle) * binormal)
@@ -589,36 +618,48 @@ class BaseCurveScene(ThreeDScene):
                             ]
                         )
                     )
-                    minor_circle = major_circle.copy().scale(0.5).set_fill(opacity=0.0)
+                    minor_circle = (
+                        major_circle.copy()
+                        .scale(0.5)
+                        .set_stroke(width=1.0)
+                        .set_fill(opacity=0.0)
+                    )
                     normal_group[0][0].become(VGroup(major_circle, minor_circle))
                     normal_group[0][1:].set_opacity(0.0)
                     normal_group[1:].set_opacity(0.0)
                     return
                 
-                normal *= radius
-                binormal *= radius
+                normal *= norm
+                binormal *= norm
 
+                # TODO: hay un bug donde, si el plano parte en t = a como círculo y luego
+                # cambia a cuadrilátero, entonces queda una copia del círculo
                 normal_group[0][0].submobjects = []
-                normal_group[0][0].set_stroke(PURPLE_A, opacity=1.0).set_fill(PURPLE_A, opacity=0.5).set_points_as_corners(
-                    [
-                        self.axes.c2p(position + shift)
-                        for shift in [
-                            normal + binormal,
-                            normal - binormal,
-                            -normal - binormal,
-                            -normal + binormal,
-                            normal + binormal,
+                (
+                    normal_group[0][0]
+                    .set_stroke(PINK.lighter(0.5), opacity=1.0)
+                    .set_fill(PINK.lighter(0.5), opacity=0.5)
+                    .set_points_as_corners(
+                        [
+                            self.axes.c2p(position + shift)
+                            for shift in [
+                                normal + binormal,
+                                normal - binormal,
+                                -normal - binormal,
+                                -normal + binormal,
+                                normal + binormal,
+                            ]
                         ]
-                    ]
+                    )
                 )
                 for i in range(3):
                     shift1 = 0.5 * (i - 1) * normal
-                    normal_group[0][i + 1].set_stroke(PURPLE_A, opacity=1.0).put_start_and_end_on(
-                        self.axes.c2p(position + shift1 + binormal), self.axes.c2p(position + shift1 - binormal)
+                    normal_group[0][i + 1].set_stroke(PINK.lighter(0.5), opacity=1.0).set_points_as_corners(
+                        [self.axes.c2p(position + shift1 + binormal), self.axes.c2p(position + shift1 - binormal)]
                     )
                     shift2 = 0.5 * (i - 1) * binormal
-                    normal_group[0][i + 4].set_stroke(PURPLE_A, opacity=1.0).put_start_and_end_on(
-                        self.axes.c2p(position + shift2 + normal), self.axes.c2p(position + shift2 - normal)
+                    normal_group[0][i + 4].set_stroke(PINK.lighter(0.5), opacity=1.0).set_points_as_corners(
+                        [self.axes.c2p(position + shift2 + normal), self.axes.c2p(position + shift2 - normal)]
                     )
                 
                 normal_group[1].set_opacity(1.0).put_start_and_end_on(
@@ -642,6 +683,9 @@ class BaseCurveScene(ThreeDScene):
         )
         self.wait()
 
+    def animate_arc_length(self) -> None:
+        pass
+
 
 class TracingCurveScene(BaseCurveScene):
     def construct(self):
@@ -663,6 +707,7 @@ class TangentVectorScene(BaseCurveScene):
         self.add(self.curve)
         self.remove(self.t_dot_group, self.f_dot)
         self.animate_tangent_vector()
+
 
 class TangentLineScene(BaseCurveScene):
     def construct(self):
