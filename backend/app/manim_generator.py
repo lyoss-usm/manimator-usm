@@ -6,7 +6,7 @@ from manim import *
 import sympy
 from sympy.parsing.latex import parse_latex
 
-from schemas import SceneConfig
+from app.schemas import SceneConfig
 
 Dot.set_default(num_components=4)
 
@@ -135,6 +135,12 @@ class BaseCurveScene(ThreeDScene):
         if tangent is None or binormal is None:
             return None
         return np.cross(binormal, tangent)
+
+    def get_axes_ranges(self) -> list[tuple[float, float, float]]:
+        ranges = [self.axes.x_range, self.axes.y_range]
+        if self.dim == 3:
+            ranges.append(self.axes.z_range)
+        return ranges
 
     def get_alpha(self, t: float | ValueTracker) -> float:
         if isinstance(t, ValueTracker):
@@ -347,15 +353,37 @@ class BaseCurveScene(ThreeDScene):
         )
         self.wait()
         
-        self.velocity_arrow = Arrow(color=GREEN)
+        velocity_colors = [GREEN, YELLOW, ORANGE, RED]
+        self.velocity_arrow = Arrow(color=velocity_colors[0])
 
         def update_velocity_arrow(velocity_arrow: Arrow) -> None:
             t = self.t_tracker.get_value()
-            start = self.f(t)
-            end = start + np.asarray(self.velocity(t))
-            velocity_arrow.become(
-                Arrow(self.axes.c2p(start), self.axes.c2p(end), color=GREEN, buff=0.0)
+            position = self.f(t)
+            velocity = np.asarray(self.velocity(t))
+            speed = np.linalg.norm(velocity)
+            if speed == 0.0:
+                velocity_arrow.set_opacity(0.0)
+                return
+            velocity_arrow.set_opacity(1.0)
+            min_diff = min(r[1] - r[0] for r in self.get_axes_ranges())
+            ratio = speed / (0.35 * min_diff)
+            cut = 0.7
+            if ratio > cut:
+                extra = 1 - np.exp((-ratio + cut) / (1 - cut))
+                factor = cut + (1 - cut) * extra
+                i, remainder = integer_interpolate(0, len(velocity_colors) - 1, extra)
+                color = velocity_colors[i].interpolate(velocity_colors[i + 1], remainder)
+            else:
+                factor = ratio
+                color = GREEN
+
+            new_arrow = Arrow(
+                self.axes.c2p(position),
+                self.axes.c2p(position + factor * velocity / ratio),
+                color=color,
+                buff=0.0,
             )
+            velocity_arrow.become(new_arrow)
 
         update_velocity_arrow(self.velocity_arrow)
         
@@ -431,10 +459,7 @@ class BaseCurveScene(ThreeDScene):
         self.tangent_arrow = Arrow(color=GREEN)
         self.tangent_group = VGroup(self.tangent_line, self.tangent_arrow)
 
-        ranges = [self.axes.x_range, self.axes.y_range]
-        if self.dim == 3:
-            ranges.append(self.axes.z_range)
-        min_step = min(r[2] for r in ranges)
+        min_step = min(r[2] for r in self.get_axes_ranges())
 
         def update_tangent_group(tangent_group: VGroup) -> None:
             t = self.t_tracker.get_value()
@@ -540,10 +565,7 @@ class BaseCurveScene(ThreeDScene):
         def update_normal_group(normal_group: VGroup) -> None:
             t = self.t_tracker.get_value()
 
-            ranges = [self.axes.x_range, self.axes.y_range]
-            if self.dim == 3:
-                ranges.append(self.axes.z_range)
-            norm = 0.5 * min(r[2] for r in ranges)
+            norm = 0.5 * min(r[2] for r in self.get_axes_ranges())
 
             position = np.asarray(self.f(t))
             tangent = self.tangent(t)
@@ -1012,9 +1034,9 @@ def render_scene(
 
 if __name__ == "__main__":
     render_scene(
-        r"\cos(t), \sin(2t), \cos(t)",
+        r"\cos(t), \sin(2t)",
         r"0",
         r"2\pi",
-        "tangentline",
+        "tangentvector",
         {"preserve_aspect_ratio": False}
     )
