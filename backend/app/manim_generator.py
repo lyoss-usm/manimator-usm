@@ -459,7 +459,7 @@ class BaseCurveScene(ThreeDScene):
         self.tangent_arrow = Arrow(color=GREEN)
         self.tangent_group = VGroup(self.tangent_line, self.tangent_arrow)
 
-        min_step = min(r[2] for r in self.get_axes_ranges())
+        min_diff = min(r[1] - r[0] for r in self.get_axes_ranges())
 
         def update_tangent_group(tangent_group: VGroup) -> None:
             t = self.t_tracker.get_value()
@@ -470,7 +470,7 @@ class BaseCurveScene(ThreeDScene):
             tangent_group[0].set_opacity(0.5)
             tangent_group[1].set_opacity(1.0)
             position = self.f(t)
-            tangent *= 0.5 * min_step
+            tangent *= 0.2 * min_diff
 
             tangent_group[0].set_points_as_corners(
                 [
@@ -565,7 +565,8 @@ class BaseCurveScene(ThreeDScene):
         def update_normal_group(normal_group: VGroup) -> None:
             t = self.t_tracker.get_value()
 
-            norm = 0.5 * min(r[2] for r in self.get_axes_ranges())
+            min_diff = min(r[1] - r[0] for r in self.get_axes_ranges())
+            factor = 0.2 * min_diff
 
             position = np.asarray(self.f(t))
             tangent = self.tangent(t)
@@ -577,7 +578,7 @@ class BaseCurveScene(ThreeDScene):
             
             if self.dim == 2:
                 # normal_group[0] es una recta normal
-                normal *= norm
+                normal *= factor
                 normal_group[0].set_opacity(1.0).set_points_as_corners(
                     [
                         self.axes.c2p(position - 1.5 * normal),
@@ -595,8 +596,8 @@ class BaseCurveScene(ThreeDScene):
                     normal = RIGHT - tangent[0] * tangent
                     normal /= np.linalg.norm(normal)
                     binormal = np.cross(normal, tangent)
-                    normal *= norm
-                    binormal *= norm
+                    normal *= factor
+                    binormal *= factor
                     major_circle = (
                         VMobject()
                         .set_stroke(GREEN_A, width=2.0, opacity=1.0)
@@ -619,8 +620,8 @@ class BaseCurveScene(ThreeDScene):
                     normal_group[1:].set_opacity(0.0)
                     return
                 
-                normal *= norm
-                binormal *= norm
+                normal *= factor
+                binormal *= factor
 
                 # TODO: hay un bug donde, si el plano parte en t = a como círculo y luego
                 # cambia a cuadrilátero, entonces queda una copia del círculo
