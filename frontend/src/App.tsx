@@ -14,6 +14,7 @@ import { FaGithub } from "react-icons/fa";
 import { Es, Gb } from "react-flag-icons";
 
 const API_URL = "/api";
+const FORM_LINK = "https://forms.gle/YVYtwgE8QZ5QWksj7";
 
 const translations = {
   es: {
@@ -47,6 +48,7 @@ const translations = {
     builtWith: "Desarrollado con React, FastAPI, Celery y Manim",
     madeWith: "Hecho con",
     inManim: "en Manim",
+    shareFeedback: "Compartir retroalimentación",
     language: "Español",
     flag: <Es />,
   },
@@ -82,6 +84,7 @@ const translations = {
     builtWith: "Built with React, FastAPI, Celery and Manim",
     madeWith: "Made with",
     inManim: "in Manim",
+    shareFeedback: "Share feedback",
     language: "English",
     flag: <Gb />,
   },
@@ -105,6 +108,7 @@ export default function App() {
   const [sceneConfig, setSceneConfig] = useState({ "preserve_aspect_ratio": false });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showSurvey, setShowSurvey] = useState(false);
 
   const createEmptyVideoUrls = (): VideoUrls => 
     Object.fromEntries(SCENE_KEYS.map(key => [key, null])) as VideoUrls;
@@ -180,6 +184,7 @@ export default function App() {
         clearInterval(interval);
         setVideoUrls(getNewVideoUrls(data));
         setLoading(false);
+        setShowSurvey(true);
       }
 
       if (data.status === "error") {
@@ -446,6 +451,37 @@ export default function App() {
         </CardContent>
       </Card>
 
+      {
+        showSurvey && (
+          <Card className="border mt-4">
+            <CardContent className="p-4">
+              <h3 className="font-semibold">
+                ¿Te resultó útil esta herramienta?
+              </h3>
+
+              <p className="text-sm text-gray-500 mt-2">
+                Tu opinión ayudará a mejorar la plataforma y
+                será utilizada en el contexto de un trabajo
+                académico.
+              </p>
+
+              <Button
+                className="mt-4"
+                asChild
+              >
+                <a
+                  href={FORM_LINK}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Responder encuesta
+                </a>
+              </Button>
+            </CardContent>
+          </Card>
+        )
+      }
+
       <footer className="w-full max-w-3xl mt-10 text-sm text-gray-500">
         <Card className="rounded-2xl shadow-sm">
           <CardContent className="p-5 space-y-4">
@@ -483,6 +519,19 @@ export default function App() {
                   <ExternalLink size={14} />
                 </a>
               </div>
+
+              <Button
+                variant="outline"
+                asChild
+              >
+                <a
+                  href={FORM_LINK}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {t.shareFeedback}
+                </a>
+              </Button>
             </div>
 
             {/* Línea divisoria */}
