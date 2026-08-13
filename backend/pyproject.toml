@@ -5,7 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
-    "antlr4-python3-runtime==4.11",
+    "antlr4-python3-runtime==4.13.2",
     "celery>=5.6.3",
     "fastapi>=0.141.1",
     "manim>=0.20.1",
