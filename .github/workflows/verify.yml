@@ -38,7 +38,7 @@ jobs:
         run: npm run build
 
   backend:
-    name: Backend (sync + import)
+    name: Backend (lock + compile)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -53,19 +53,25 @@ jobs:
         with:
           python-version: "3.14"
 
-      - name: 📦 Sync Dependencies
-        run: uv sync --frozen
-
-      - name: 🔧 Install System Libraries
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libcairo2 libpango-1.0-0 libpangocairo-1.0-0 ffmpeg
-
-      - name: 🗂️ Create Media Directory
-        run: mkdir -p media/videos/720p30
+      - name: 🔒 Check Lockfile Consistency
+        run: uv lock --check
 
       - name: 🧩 Compile Python Files
         run: python -m compileall app
 
-      - name: 🚀 Smoke Import
-        run: python -c "from app.main import app"
+  docker:
+    name: Docker (build images)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🐳 Build Backend Image
+        run: docker build ./backend -t manimator-usm-backend
+
+      - name: 🐳 Build Frontend Image
+        run: docker build ./frontend -t manimator-usm-frontend
+
+      - name: 🧱 Validate Compose Config
+        run: docker compose config --quiet

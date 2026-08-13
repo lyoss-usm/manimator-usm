@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState, type ChangeEvent } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "./components/ui/checkbox";
@@ -98,6 +98,12 @@ type Language = "en" | "es";
 type VideoUrls = Record<SceneKey, string | null>;
 type IncludedScenes = Record<SceneKey, boolean>;
 
+type StatusResponse = {
+  status: string;
+  video_urls?: Record<SceneKey, string | null>;
+  error?: string;
+};
+
 export default function App() {
   const [language, setLanguage] = useState<Language>("es");
   const t = translations[language];
@@ -123,12 +129,7 @@ export default function App() {
   const [includedScenes, setIncludedScenes] = useState(createDefaultIncludedScenes());
   const [activeTab, setActiveTab] = useState<SceneKey>("tracing");
 
-  // Mantener tab válida
-  useEffect(() => {
-    if (!includedScenes[activeTab]) {
-      setActiveTab("tracing");
-    }
-  }, [includedScenes, activeTab]);
+  const currentTab = includedScenes[activeTab] ? activeTab : "tracing";
 
   const resetVideos = () => {
     setVideoUrls(createEmptyVideoUrls());
@@ -159,15 +160,15 @@ export default function App() {
   const pollStatus = (taskId: string) => {
     const interval = setInterval(async () => {
       const res = await fetch(`${API_URL}/status/${taskId}`);
-      const data = await res.json();
+      const data = (await res.json()) as StatusResponse;
 
       setError("");
 
-      const getNewVideoUrls = (data: any) => {
+      const getNewVideoUrls = (data: StatusResponse) => {
         const newVideoUrls = createEmptyVideoUrls();
 
         for (const key of SCENE_KEYS) {
-          const videoUrl = data.video_urls[key];
+          const videoUrl = data.video_urls?.[key] ?? null;
           if (videoUrl !== null) {
             newVideoUrls[key] = `${API_URL}${videoUrl}`;
           }
@@ -196,7 +197,7 @@ export default function App() {
   };
 
   const renderVideoPanel = () => {
-    const currentVideo = videoUrls[activeTab];
+    const currentVideo = videoUrls[currentTab];
 
     // Loader mientras se genera
     if (loading && !currentVideo) {
@@ -264,7 +265,7 @@ export default function App() {
                   id="fTex"
                   name="fTex"
                   value={fTex}
-                  onChange={(e: any) => setFTex(e.target.value)}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setFTex(e.target.value)}
                   placeholder={t.curvePlaceholder}
                 />
               </Field>
@@ -279,7 +280,7 @@ export default function App() {
                     id="aTex"
                     name="aTex"
                     value={aTex}
-                    onChange={(e: any) => setATex(e.target.value)}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setATex(e.target.value)}
                     placeholder={t.lowerBoundLabel}
                   />
                 </Field>
@@ -293,7 +294,7 @@ export default function App() {
                     id="bTex"
                     name="bTex"
                     value={bTex}
-                    onChange={(e: any) => setBTex(e.target.value)}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setBTex(e.target.value)}
                     placeholder={t.upperBoundLabel}
                   />
                 </Field>
@@ -419,10 +420,9 @@ export default function App() {
                         items-center
                         gap-2
                         ${
-                          activeTab === sceneKey
+                          currentTab === sceneKey
                             ? "border-black text-black"
-                            : "border-transparent text-gray-500 hover:text-black"
-                        }
+                            : "border-transparent text-gray-500 hover:text-black"                        }
                       `}
                     >
                       {t.sceneLabels[sceneKey]}

@@ -8,6 +8,9 @@ from app.tasks import render_manim_task
 from celery.result import AsyncResult
 from app.tasks import celery_app
 
+MEDIA_DIR = "/manim/media/videos/720p30"
+os.makedirs(MEDIA_DIR, exist_ok=True)
+
 app = FastAPI()
 
 app.add_middleware(
@@ -18,7 +21,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.mount("/videos", StaticFiles(directory="/manim/media/videos/720p30"), name="videos")
+app.mount("/videos", StaticFiles(directory=MEDIA_DIR), name="videos")
 
 @app.post("/render")
 def render(req: RenderRequest):

@@ -1026,6 +1026,9 @@ def render_scene(
         "arclength": ArcLengthScene,
     }[scene_key]
 
+    media_dir = Path("/manim/media/videos/720p30")
+    media_dir.mkdir(parents=True, exist_ok=True)
+
     if not Path(f"/manim/media/videos/720p30/{output_filename}.mp4").exists():
         with tempconfig({"quality": "medium_quality", "output_file": output_filename}):
             scene_class(f_tex, a_tex, b_tex, scene_config).render()
