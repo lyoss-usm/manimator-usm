@@ -95,17 +95,12 @@ Para detener: `docker compose down`.
 
 ## Estructura del repositorio
 
-```mermaid
-graph LR
-    A[.] --> B[backend/]
-    A --> C[frontend/]
-    A --> D[docker-compose.yml]
-    A --> E[media/]
-
-    B --> B1[API FastAPI, worker Celery<br/>y generador de escenas Manim]
-    C --> C1[SPA en React + TypeScript + Vite]
-    D --> D1[Orquestación de servicios]
-    E --> E1[Videos generados<br/>volumen compartido, ignorado por git]
+```
+.
+├── backend/            # API FastAPI, worker Celery y generador de escenas Manim
+├── frontend/           # SPA en React + TypeScript + Vite
+├── docker-compose.yml  # Orquestación de servicios
+└── media/              # Videos generados (volumen compartido, ignorado por git)
 ```
 
 ## Notas y limitaciones conocidas
