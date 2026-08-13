@@ -1,0 +1,46 @@
+name: Fix Lockfile
+
+on:
+  pull_request_target:
+    branches: ["main"]
+    paths:
+      - "backend/pyproject.toml"
+      - "backend/uv.lock"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  fix-lockfile:
+    name: Regenerar uv.lock si es necesario
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout PR
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: 🐍 Setup Python
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.14"
+
+      - name: 🔧 Regenerate Lockfile
+        run: |
+          cd backend
+          if ! uv lock --check; then
+            uv lock
+            cd ..
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add backend/uv.lock
+            git commit -m "chore(deps): regenerar uv.lock tras actualizar pyproject.toml"
+            git push origin HEAD:${{ github.event.pull_request.head.ref }}
+          else
+            echo "uv.lock ya está sincronizado"
+          fi
